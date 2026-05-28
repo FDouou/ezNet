@@ -79,8 +79,7 @@ loop.loop();
 
 ## 性能基准
 
-> ⚠️ 以下数据为 **WSL2 虚拟环境下限**。WSL2 的系统调用需穿越 Hyper-V 虚拟化层，实际性能受此影响较大（syscall 密集型应用的常见瓶颈）。
-> 原生 Linux 同等硬件下预期 **15-20 万 QPS**（见 [bench/bench.txt](bench/bench.txt) 压测环境说明）。
+> ⚠️ 以下数据为 **WSL2 虚拟环境下限** ⚠️ 因WSL2 的系统调用需穿越 Hyper-V 虚拟化层，实际性能受此影响较大
 
 单线程 EventLoop，GCC 15，`wrk` 压测：
 
