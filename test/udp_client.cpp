@@ -6,11 +6,6 @@
 #include <unistd.h>
 
 int main(int argc, char* argv[]) {
-    //TODO:
-    // 1. 解析命令行参数: host port message
-    // 2. 创建 UDP socket
-    // 3. 发送数据报
-    // 4. 接收并打印响应
 
     const char* host = argc > 1 ? argv[1] : "127.0.0.1";
     int port = argc > 2 ? std::atoi(argv[2]) : 8081;

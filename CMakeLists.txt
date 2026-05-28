@@ -63,3 +63,18 @@ add_executable(udp_server_test
 )
 target_include_directories(udp_server_test PUBLIC src)
 target_link_libraries(udp_server_test pthread)
+
+add_executable(http_test
+    test/http_test.cpp
+    src/http/HttpRequest.cpp
+    src/http/HttpResponse.cpp
+    src/http/Router.cpp
+)
+target_include_directories(http_test PUBLIC src)
+
+add_executable(config_test
+    test/config_test.cpp
+    src/util/Config.cpp
+    src/util/Logger.cpp
+)
+target_include_directories(config_test PUBLIC src)

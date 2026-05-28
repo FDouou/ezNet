@@ -7,12 +7,6 @@
 #include <unistd.h>
 
 int main(int argc, char* argv[]) {
-    //TODO:
-    // 1. 解析命令行参数: host port message
-    // 2. 创建 TCP socket 并 connect
-    // 3. 发送消息
-    // 4. 接收并打印响应
-    // 5. 关闭 socket
 
     const char* host = argc > 1 ? argv[1] : "127.0.0.1";
     int port = argc > 2 ? std::atoi(argv[2]) : 8082;

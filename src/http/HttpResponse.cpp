@@ -1,4 +1,4 @@
-﻿#include "http/HttpResponse.h"
+#include "http/HttpResponse.h"
 #include <sstream>
 #include <cstdio>
 
@@ -76,14 +76,27 @@ void HttpResponse::reset() {
 
 std::string HttpResponse::build() const {
     std::string response;
-    response.reserve(1024);
+    response.reserve(1024 + body_.size());
     response += "HTTP/1.1 " + std::to_string(statusCode_) + " " + statusMessage_ + "\r\n";
     response += "Server: ezNet\r\n";
+
     for (const auto& header : headers_) {
+        if (chunked_ && header.first == "Content-Length") continue;
         response += header.first + ": " + header.second + "\r\n";
     }
-    response += "\r\n";
-    response += body_;
+
+    if (chunked_ && !body_.empty()) {
+        response += "Transfer-Encoding: chunked\r\n";
+        response += "\r\n";
+        char hexBuf[32];
+        snprintf(hexBuf, sizeof(hexBuf), "%zx\r\n", body_.size());
+        response += hexBuf;
+        response += body_;
+        response += "\r\n0\r\n\r\n";
+    } else {
+        response += "\r\n";
+        response += body_;
+    }
     return response;
 }
 
