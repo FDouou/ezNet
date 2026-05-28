@@ -1,0 +1,122 @@
+# ezNet Benchmark Results
+Generated: Thu May 29 00:00 UTC 2025
+
+======================================================================
+Environment
+======================================================================
+Kernel    : 6.6.87.2-microsoft-standard-WSL2
+CPU Model : WSL2 virtualized (host: Intel Core)
+Memory    : RSS 8.2 MB, VmSize 11.6 MB
+Threads   : 1
+Endpoints : /hello (plain text), /status (JSON)
+Compiler  : GCC 15.2.0, C++17
+
+======================================================================
+Test 1: Single Connection Baseline (Pipelining)
+======================================================================
+Command : wrk -t1 -c1 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 20,995
+  Transfer/sec   : 1.86 MB
+  Avg Latency    : 56.21 us
+  Latency P50    : 38 us
+  Latency P75    : 43 us
+  Latency P90    : 102 us
+  Latency P99    : 275 us
+  Total Requests : 212,047
+
+======================================================================
+Test 2: 4 Threads / 10 Connections
+======================================================================
+Command : wrk -t4 -c10 -d10s http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 75,576
+  Transfer/sec   : 6.70 MB
+  Avg Latency    : 107 us
+  Total Requests : 763,314
+
+======================================================================
+Test 3: 4 Threads / 100 Connections
+======================================================================
+Command : wrk -t4 -c100 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 90,450
+  Transfer/sec   : 8.02 MB
+  Avg Latency    : 1.10 ms
+  Total Requests : 913,539
+
+======================================================================
+Test 4: 4 Threads / 100 Connections (JSON /status)
+======================================================================
+Command : wrk -t4 -c100 -d10s --latency http://localhost:8080/status
+
+Result:
+  Requests/sec   : 87,513
+  Transfer/sec   : 8.43 MB
+  Avg Latency    : 1.13 ms
+  Latency P50    : 1.12 ms
+  Latency P75    : 1.18 ms
+  Latency P90    : 1.28 ms
+  Latency P99    : 1.72 ms
+  Total Requests : 883,824
+
+======================================================================
+Test 5: 4 Threads / 500 Connections (Stress)
+======================================================================
+Command : wrk -t4 -c500 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 88,659
+  Transfer/sec   : 7.86 MB
+  Avg Latency    : 5.59 ms
+  Latency P50    : 5.52 ms
+  Latency P75    : 5.83 ms
+  Latency P90    : 6.19 ms
+  Latency P99    : 7.06 ms
+  Total Requests : 893,318
+
+======================================================================
+Test 6: 4 Threads / 100 Connections + Keep-Alive
+======================================================================
+Command : wrk -t4 -c100 -d10s -H "Connection: keep-alive" http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 83,464
+  Transfer/sec   : 7.40 MB
+  Avg Latency    : 1.19 ms
+  Total Requests : 842,884
+
+======================================================================
+Summary Table
+======================================================================
+
+| Test                       | Conns | QPS      | P50     | P99     |
+|----------------------------|-------|----------|---------|---------|
+| Single conn (pipelining)   | 1     | 20,995   | 38 us   | 275 us  |
+| 4 threads / 10 conns       | 10    | 75,576   | N/A     | N/A     |
+| 4 threads / 100 conns      | 100   | 90,450   | N/A     | N/A     |
+| JSON /status               | 100   | 87,513   | 1.12 ms | 1.72 ms |
+| 500 conns (stress)         | 500   | 88,659   | 5.52 ms | 7.06 ms |
+| Keep-Alive                 | 100   | 83,464   | N/A     | N/A     |
+
+======================================================================
+System Resource Usage (post-benchmark)
+======================================================================
+CPU Usage : ~40% (single core saturation)
+Memory    : 8.2 MB RSS (extremely low)
+File FDs  : 7 (no leak after 4.5M+ requests)
+Threads   : 1
+
+======================================================================
+Key Findings
+======================================================================
+1. Peak QPS: ~90,000 req/s (single EventLoop thread)
+2. Single connection pipeline: ~21,000 req/s
+3. Latency P50 at 100 conns: ~1.1 ms (excellent)
+4. Latency P99 at 500 conns: 7.06 ms (still very good)
+5. Memory: only 8.2 MB (near-zero overhead)
+6. No file descriptor leak after ~4.5 million requests
+7. Single-threaded epoll model saturates one CPU core
