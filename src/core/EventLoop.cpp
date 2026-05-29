@@ -1,19 +1,40 @@
-﻿#include "core/EventLoop.h"
+#include "core/EventLoop.h"
 #include "util/Logger.h"
 #include <cstring>
 #include <stdexcept>
+#include <sys/timerfd.h>
 #include <unistd.h>
 
 namespace ezNet {
 
 EventLoop::EventLoop(TriggerMode mode)
-    : epollFd_(epoll_create1(EPOLL_CLOEXEC)), triggerMode_(mode), running_(false), events_(16), fdContexts_(1024) {
+    : epollFd_(epoll_create1(EPOLL_CLOEXEC)), triggerMode_(mode), running_(false),
+      events_(16), fdContexts_(1024),
+      timerFd_(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)),
+      timeWheel_(60, 1.0) {
     if (epollFd_ < 0) {
         throw std::runtime_error("fail epoll_create1");
     }
+    if (timerFd_ < 0) {
+        throw std::runtime_error("fail timerfd_create");
+    }
+
+    struct itimerspec ts;
+    ts.it_value.tv_sec = 1;
+    ts.it_value.tv_nsec = 0;
+    ts.it_interval.tv_sec = 1;
+    ts.it_interval.tv_nsec = 0;
+    timerfd_settime(timerFd_, 0, &ts, nullptr);
+
+    addFd(timerFd_, EPOLLIN, [this](uint32_t) {
+        uint64_t exp;
+        ::read(timerFd_, &exp, sizeof(exp));
+        timeWheel_.tick();
+    });
 }
 
 EventLoop::~EventLoop() {
+    close(timerFd_);
     close(epollFd_);
 }
 

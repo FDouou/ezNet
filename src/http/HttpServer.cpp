@@ -55,6 +55,11 @@ void HttpServer::onData(std::shared_ptr<Connection> conn, Buffer* buf) {
     auto parserContext = static_cast<ParserContext*>(conn->userData());
     if (!parserContext) return;
 
+    if (conn->wheelEntry()) {
+        tcpServer_->loop()->timeWheel().refresh(
+            static_cast<TimeWheel::Entry*>(conn->wheelEntry()));
+    }
+
     size_t nparsed = http_parser_execute(
         &parserContext->parser, 
         &parserContext->settings,

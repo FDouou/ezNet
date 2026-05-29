@@ -54,6 +54,9 @@ public:
     void setUserData(void* data) { userData_ = data; }
     void* userData() const { return userData_; }
 
+    void setWheelEntry(void* entry) { wheelEntry_ = entry; }
+    void* wheelEntry() const { return wheelEntry_; }
+
 private:
     void handleRead();
     void handleWrite();
@@ -74,6 +77,7 @@ private:
     WriteCompleteCallback writeCompleteCallback_;
 
     void* userData_ = nullptr;
+    void* wheelEntry_ = nullptr;
 };
 
 } // namespace ezNet

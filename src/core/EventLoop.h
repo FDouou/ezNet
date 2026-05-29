@@ -1,10 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <functional>
 #include <memory>
 #include <vector>
+#include "core/TimeWheel.h"
 
 namespace ezNet {
 
@@ -28,8 +29,9 @@ public:
     void removeFd(int fd);
 
     void loop();
-
     void stop();
+
+    TimeWheel& timeWheel() { return timeWheel_; }
 
 private:
     int epollFd_;
@@ -44,6 +46,9 @@ private:
     };
 
     std::vector<FdContext> fdContexts_;
+
+    int timerFd_;
+    TimeWheel timeWheel_;
 };
 
 } // namespace ezNet

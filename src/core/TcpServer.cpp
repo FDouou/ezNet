@@ -1,4 +1,4 @@
-﻿#include "core/TcpServer.h"
+#include "core/TcpServer.h"
 #include "util/Logger.h"
 #include <arpa/inet.h>
 #include <cstring>
@@ -96,11 +96,25 @@ void TcpServer::handleAccept() {
             removeConnection(c);
         });
         conn->start();
+
+        std::weak_ptr<Connection> weakConn = conn;
+        auto* entry = loop_->timeWheel().add(60.0, [weakConn]() {
+            if (auto c = weakConn.lock()) {
+                c->setWheelEntry(nullptr);
+                c->forceClose();
+            }
+        }, weakConn);
+        conn->setWheelEntry(entry);
+
         if (connectionCallback_) connectionCallback_(conn);
     }
 }
 
 void TcpServer::removeConnection(std::shared_ptr<Connection> conn) {
+    if (conn->wheelEntry()) {
+        loop_->timeWheel().remove(static_cast<TimeWheel::Entry*>(conn->wheelEntry()));
+        conn->setWheelEntry(nullptr);
+    }
     connections_.erase(conn->fd());
 }
 

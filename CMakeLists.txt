@@ -15,6 +15,7 @@ add_executable(ezNet
     src/core/Connection.cpp
     src/core/Buffer.cpp
     src/core/Timer.cpp
+    src/core/TimeWheel.cpp
     src/http/HttpServer.cpp
     src/http/HttpRequest.cpp
     src/http/HttpResponse.cpp
@@ -32,6 +33,7 @@ target_link_libraries(ezNet http_parser)
 add_executable(eventloop_test
     test/eventloop_test.cpp
     src/core/EventLoop.cpp
+    src/core/TimeWheel.cpp
     src/util/Logger.cpp
 )
 target_include_directories(eventloop_test PUBLIC src)
@@ -46,6 +48,7 @@ target_include_directories(buffer_test PUBLIC src)
 add_executable(tcp_server_test
     test/tcp_server_test.cpp
     src/core/EventLoop.cpp
+    src/core/TimeWheel.cpp
     src/core/TcpServer.cpp
     src/core/Connection.cpp
     src/core/Buffer.cpp
@@ -57,6 +60,7 @@ target_link_libraries(tcp_server_test pthread)
 add_executable(udp_server_test
     test/udp_server_test.cpp
     src/core/EventLoop.cpp
+    src/core/TimeWheel.cpp
     src/core/UdpServer.cpp
     src/core/Buffer.cpp
     src/util/Logger.cpp
@@ -78,3 +82,9 @@ add_executable(config_test
     src/util/Logger.cpp
 )
 target_include_directories(config_test PUBLIC src)
+
+add_executable(timewheel_test
+    test/timewheel_test.cpp
+    src/core/TimeWheel.cpp
+)
+target_include_directories(timewheel_test PUBLIC src)
