@@ -1,7 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include "http/HttpRequest.h"
 #include "http/HttpResponse.h"
@@ -14,18 +16,23 @@ public:
 
     void addRoute(const std::string& method, const std::string& path, Handler handler);
 
-    bool route(const HttpRequest& req, HttpResponse* resp) const;
+    bool route(HttpRequest& req, HttpResponse* resp) const;
 
     void setDefaultHandler(Handler handler);
 
 private:
-    struct RouteEntry {
-        std::string method;
-        std::string path;
+    struct RadixNode {
+        std::string segment;
+        std::unordered_map<std::string, std::unique_ptr<RadixNode>> children;
+        std::unique_ptr<RadixNode> paramChild;
         Handler handler;
     };
 
-    std::vector<RouteEntry> routes_ = {};
+    RadixNode* getOrCreateMethodRoot(const std::string& method);
+    bool match(RadixNode* node, const std::vector<std::string>& segments,
+               size_t index, HttpRequest& req, HttpResponse* resp) const;
+
+    std::unordered_map<std::string, std::unique_ptr<RadixNode>> methodRoots_;
     Handler defaultHandler_ = nullptr;
 };
 

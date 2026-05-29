@@ -18,6 +18,7 @@ void HttpRequest::reset() {
     keepAlive_ = false;
     httpMajor_ = 1;
     httpMinor_ = 1;
+    pathParams_.clear();
 }
 
 std::string HttpRequest::method() const {
@@ -139,6 +140,42 @@ int HttpRequest::httpMinor() const {
 void HttpRequest::setHttpVersion(int major, int minor) {
     httpMajor_ = major;
     httpMinor_ = minor;
+}
+
+std::string HttpRequest::pathParam(const std::string& name) const {
+    auto it = pathParams_.find(name);
+    if (it != pathParams_.end()) {
+        return it->second;
+    }
+    return "";
+}
+
+void HttpRequest::setPathParam(const std::string& name, const std::string& value) {
+    pathParams_[name] = value;
+}
+
+int HttpRequest::pathParamAsInt(const std::string& name, int defaultVal) const {
+    auto it = pathParams_.find(name);
+    if (it == pathParams_.end() || it->second.empty()) {
+        return defaultVal;
+    }
+    try {
+        return std::stoi(it->second);
+    } catch (...) {
+        return defaultVal;
+    }
+}
+
+double HttpRequest::pathParamAsDouble(const std::string& name, double defaultVal) const {
+    auto it = pathParams_.find(name);
+    if (it == pathParams_.end() || it->second.empty()) {
+        return defaultVal;
+    }
+    try {
+        return std::stod(it->second);
+    } catch (...) {
+        return defaultVal;
+    }
 }
 
 } // namespace ezNet

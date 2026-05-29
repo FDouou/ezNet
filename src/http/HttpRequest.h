@@ -5,7 +5,10 @@
 
 namespace ezNet {
 
+class Router;
+
 class HttpRequest {
+    friend class Router;
 public:
     HttpRequest();
 
@@ -38,6 +41,11 @@ public:
     bool keepAlive() const;
     void setKeepAlive(bool keepAlive);
 
+    std::string pathParam(const std::string& name) const;
+    int pathParamAsInt(const std::string& name, int defaultVal = 0) const;
+    double pathParamAsDouble(const std::string& name, double defaultVal = 0.0) const;
+    void setPathParam(const std::string& name, const std::string& value);
+
     int httpMajor() const;
     int httpMinor() const;
     void setHttpVersion(int major, int minor);
@@ -52,6 +60,7 @@ private:
     bool keepAlive_;
     int httpMajor_;
     int httpMinor_;
+    std::unordered_map<std::string, std::string> pathParams_;
 };
 
 } // namespace ezNet
