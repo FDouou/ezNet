@@ -52,6 +52,7 @@ void Connection::send(const std::string& data) {
 }
 
 void Connection::send(const char* data, size_t len) {
+    //先直接往内核写，写不完就写入outputBuffer，并设置监听EPOLLOUT事件
     if (outputBuffer_.readableBytes() == 0) {
         ssize_t n = ::write(fd_, data, len);
         if (n > 0) {
@@ -146,11 +147,14 @@ void Connection::handleRead() {
 }
 
 void Connection::handleWrite() {
-    int savedErrno = 0;
-    ssize_t n = outputBuffer_.writeToFd(fd_, &savedErrno);
-    if (n < 0 && errno != EAGAIN) {
-        handleError();
-        return;
+    while (outputBuffer_.readableBytes() > 0) {
+        int savedErrno = 0;
+        ssize_t n = outputBuffer_.writeToFd(fd_, &savedErrno);
+        if (n < 0) {
+            handleError();
+            return;
+        }
+        if (n == 0) break;
     }
     if (outputBuffer_.readableBytes() == 0) {
         loop_->modFd(fd_, EPOLLIN, [this](uint32_t events) {
