@@ -45,6 +45,7 @@ void TimeWheel::remove(Entry* entry) {
     delete entry;
 }
 
+// 刷新 entry 过期时间
 void TimeWheel::refresh(Entry* entry) {
     if (!entry || entry->bucketIndex < 0) return;
     detach(entry);
@@ -57,6 +58,7 @@ void TimeWheel::refresh(Entry* entry) {
     attach(bucket, entry);
 }
 
+// 最短时间间隔触发器，执行槽内所有cb
 void TimeWheel::tick() {
     currentBucket_ = (currentBucket_ + 1) % bucketCount_;
 
@@ -77,6 +79,7 @@ void TimeWheel::tick() {
     }
 }
 
+// 从槽中移除 entry
 void TimeWheel::detach(Entry* entry) {
     int idx = entry->bucketIndex;
     if (idx < 0) return;
@@ -94,6 +97,7 @@ void TimeWheel::detach(Entry* entry) {
     entry->bucketIndex = -1;
 }
 
+// 将 entry 添加到槽的链表头部
 void TimeWheel::attach(int bucket, Entry* entry) {
     entry->bucketIndex = bucket;
     entry->next = buckets_[bucket];

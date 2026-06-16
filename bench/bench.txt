@@ -120,3 +120,70 @@ Key Findings
 5. Memory: only 8.2 MB (near-zero overhead)
 6. No file descriptor leak after ~4.5 million requests
 7. Single-threaded epoll model saturates one CPU core
+
+======================================================================
+Release Build Benchmark (-O3 -march=native -DNDEBUG)
+Generated: Mon Jun 15 08:12 UTC 2026
+======================================================================
+
+Test R1: Single Connection Baseline (Pipelining)
+Command : wrk -t1 -c1 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 22,839
+  Transfer/sec   : 2.03 MB
+  Avg Latency    : 48.02 us
+  Latency P50    : 37 us
+  Latency P75    : 39 us
+  Latency P90    : 71 us
+  Latency P99    : 215 us
+  Total Requests : 230,667
+
+Test R2: 4 Threads / 100 Connections
+Command : wrk -t4 -c100 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 84,901
+  Transfer/sec   : 7.53 MB
+  Avg Latency    : 1.17 ms
+  Latency P50    : 1.16 ms
+  Latency P75    : 1.22 ms
+  Latency P90    : 1.29 ms
+  Latency P99    : 1.66 ms
+  Total Requests : 857,511
+
+Test R3: 4 Threads / 500 Connections (Stress)
+Command : wrk -t4 -c500 -d10s --latency http://localhost:8080/hello
+
+Result:
+  Requests/sec   : 84,264
+  Transfer/sec   : 7.47 MB
+  Avg Latency    : 5.91 ms
+  Latency P50    : 5.85 ms
+  Latency P75    : 6.13 ms
+  Latency P90    : 6.44 ms
+  Latency P99    : 7.20 ms
+  Total Requests : 845,108
+
+======================================================================
+Debug vs Release Comparison
+======================================================================
+
+| Test              | Debug (no -O)  | Release (-O3) | Diff    |
+|-------------------|----------------|----------------|---------|
+| Single conn QPS   | 20,995         | 22,839         | +8.8%   |
+| Single conn P50   | 38 us          | 37 us          | -2.6%   |
+| Single conn P99   | 275 us         | 215 us         | -21.8%  |
+| 100 conns QPS     | 90,450         | 84,901         | -6.1%   |
+| 100 conns P50     | N/A            | 1.16 ms        | --      |
+| 100 conns P99     | N/A            | 1.66 ms        | --      |
+| 500 conns QPS     | 88,659         | 84,264         | -5.0%   |
+| 500 conns P50     | 5.52 ms        | 5.85 ms        | +6.0%   |
+| 500 conns P99     | 7.06 ms        | 7.20 ms        | +2.0%   |
+
+Notes:
+- Single connection pipelining: Release +8.8% QPS, P99 latency -21.8%
+  -> -O3 对内联密集的请求-响应循环有明显收益
+- Multi-connection (100/500): Release QPS 反而略低（-5~6%）
+  -> 多连接场景瓶颈在 epoll_wait 遍历 fd 和内核调度，
+     单线程 EventLoop 本身已接近 CPU 饱和，编译器优化空间有限

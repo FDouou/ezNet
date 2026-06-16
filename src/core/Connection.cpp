@@ -131,15 +131,18 @@ void Connection::resetForNextRequest() {
 }
 
 void Connection::handleRead() {
-    int savedErrno = 0;
-    ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
-    if (n < 0 && errno != EAGAIN) {
-        handleError();
-        return;
-    }
-    if (n == 0) {
-        handleClose();
-        return;
+    while (true) {
+        int savedErrno = 0;
+        ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
+        if (n < 0) {
+            if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK) break;
+            handleError();
+            return;
+        }
+        if (n == 0) {
+            handleClose();
+            return;
+        }
     }
     if (dataCallback_) {
         dataCallback_(shared_from_this(), &inputBuffer_);

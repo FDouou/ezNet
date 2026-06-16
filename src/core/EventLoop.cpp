@@ -56,6 +56,11 @@ void EventLoop::addFd(int fd, uint32_t events, EventCallback cb) {
 }
 
 void EventLoop::modFd(int fd, uint32_t events, EventCallback cb) {
+    if (fd < 0 || fd >= static_cast<int>(fdContexts_.size())
+        || fdContexts_[fd].fd == -1) {
+        throw std::runtime_error("modFd: fd not registered or has been removed");
+    }
+
     auto& fdContext = fdContexts_[fd];
     fdContext.events = events;
     fdContext.callback = cb;

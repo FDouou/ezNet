@@ -4,6 +4,10 @@ project(ezNet)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Release 编译优化
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG" CACHE STRING "" FORCE)
+
 add_library(http_parser STATIC third_party/http-parser/http_parser.c)
 target_include_directories(http_parser PUBLIC third_party/http-parser)
 
