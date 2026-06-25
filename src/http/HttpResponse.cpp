@@ -159,28 +159,51 @@ void HttpResponse::reset() {
 }
 
 std::string HttpResponse::build() const {
+    // 1. 精确预计算所需大小（避免 realloc）
+    size_t estimated = 64;  // "HTTP/1.1 " + status + " " + message + "\r\n" + "Server: ezNet\r\n"
+    estimated += body_.size();
+    for (const auto& header : headers_) {
+        if (!chunked_ || header.first != "Content-Length") {
+            estimated += header.first.size() + header.second.size() + 4;  // ": " + "\r\n"
+        }
+    }
+    if (chunked_ && !body_.empty()) {
+        estimated += body_.size() + 64;  // chunked overhead
+    }
+    estimated += 2;  // "\r\n"
+
     std::string response;
-    response.reserve(1024 + body_.size());
-    response += "HTTP/1.1 " + std::to_string(statusCode_) + " " + statusMessage_ + "\r\n";
-    response += "Server: ezNet\r\n";
+    response.reserve(estimated);
+
+    // 2. 用 append/push_back 代替 + 运算符（避免临时 string）
+    response.append("HTTP/1.1 ");
+    response.append(std::to_string(statusCode_));
+    response.push_back(' ');
+    response.append(statusMessage_);
+    response.append("\r\n");
+
+    response.append("Server: ezNet\r\n");
 
     for (const auto& header : headers_) {
         if (chunked_ && header.first == "Content-Length") continue;
-        response += header.first + ": " + header.second + "\r\n";
+        response.append(header.first);
+        response.append(": ");
+        response.append(header.second);
+        response.append("\r\n");
     }
 
     if (chunked_ && !body_.empty()) {
-        response += "Transfer-Encoding: chunked\r\n";
-        response += "\r\n";
+        response.append("Transfer-Encoding: chunked\r\n\r\n");
         char hexBuf[32];
-        snprintf(hexBuf, sizeof(hexBuf), "%zx\r\n", body_.size());
-        response += hexBuf;
-        response += body_;
-        response += "\r\n0\r\n\r\n";
+        int hexLen = snprintf(hexBuf, sizeof(hexBuf), "%zx\r\n", body_.size());
+        response.append(hexBuf, static_cast<size_t>(hexLen));
+        response.append(body_);
+        response.append("\r\n0\r\n\r\n");
     } else {
-        response += "\r\n";
-        response += body_;
+        response.append("\r\n");
+        response.append(body_);
     }
+
     return response;
 }
 

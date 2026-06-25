@@ -178,13 +178,14 @@ void Connection::resetForNextRequest() {
 
 void Connection::handleRead() {
     // ET 模式循环读取直到 EAGAIN
+    auto self = shared_from_this();  // 提前获取，循环内复用避免多次原子操作
     while (true) {
         int savedErrno = 0;
         ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
         if (n > 0) {
             // 成功读取数据，调用回调
             if (dataCallback_) {
-                dataCallback_(shared_from_this(), &inputBuffer_);
+                dataCallback_(self, &inputBuffer_);
             }
             continue;
         }
@@ -205,6 +206,7 @@ void Connection::handleRead() {
 }
 
 void Connection::handleWrite() {
+    auto self = shared_from_this();  // 提前获取，避免多次原子操作
     // 文件发送模式（sendfile）
     if (sendingFile_) {
         // 先发送 outputBuffer 中的 HTTP 头部
@@ -266,7 +268,7 @@ void Connection::handleWrite() {
             });
 
             if (writeCompleteCallback_) {
-                writeCompleteCallback_(shared_from_this());
+                writeCompleteCallback_(self);
             }
             if (state_ == State::Closing) {
                 handleClose();
@@ -293,7 +295,7 @@ void Connection::handleWrite() {
             if (events & (EPOLLERR | EPOLLHUP)) handleError();
         });
         if (writeCompleteCallback_) {
-            writeCompleteCallback_(shared_from_this());
+            writeCompleteCallback_(self);
         }
         if (state_ == State::Closing) {
             handleClose();

@@ -16,16 +16,16 @@ Transfer/sec:     34.70MB
 ezNet
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   586.51us  121.32us   4.38ms   74.49%
-    Req/Sec    42.59k     2.61k   60.48k    79.90%
+    Latency   568.54us  126.90us   3.99ms   73.82%
+    Req/Sec    43.90k     2.44k   51.88k    66.58%
   Latency Distribution
-     50%  576.00us
-     75%  647.00us
-     90%  732.00us
-     99%    0.94ms
-  1707544 requests in 10.10s, 151.44MB read
-Requests/sec: 169069.30
-Transfer/sec:     15.00MB
+     50%  557.00us
+     75%  636.00us
+     90%  722.00us
+     99%    0.92ms
+  1764047 requests in 10.10s, 156.46MB read
+Requests/sec: 174661.30
+Transfer/sec:     15.49MB
 
 
 wrk -t4 -c500 -d10 -L
