@@ -28,7 +28,9 @@ EventLoop::EventLoop(TriggerMode mode)
 
     addFd(timerFd_, EPOLLIN, [this](uint32_t) {
         uint64_t exp;
+        //读取超时次数
         ::read(timerFd_, &exp, sizeof(exp));
+        executePendingCallbacks();
         timeWheel_.tick();
     });
 }
@@ -86,11 +88,13 @@ void EventLoop::removeFd(int fd) {
 void EventLoop::loop() {
     running_ = true;
     while (running_) {
-        int n = epoll_wait(epollFd_, events_.data(), events_.size(), 10000);
+        int n = epoll_wait(epollFd_, events_.data(), events_.size(), 1000);
         if (n < 0) {
             if (errno == EINTR) continue;
             break;
         }
+        // 每次 epoll_wait 返回后都执行挂起的回调，避免 runInLoop 延迟过长
+        executePendingCallbacks();
         for (int i = 0; i < n; ++i) {
             int fd = events_[i].data.fd;
             uint32_t revents = events_[i].events;
@@ -106,6 +110,25 @@ void EventLoop::loop() {
 
 void EventLoop::stop() {
     running_ = false;
+}
+
+void EventLoop::runInLoop(std::function<void()> cb) {
+    {
+        std::lock_guard<std::mutex> lock(pendingMutex_);
+        pendingCallbacks_.emplace(std::move(cb));
+    }
+}
+
+void EventLoop::executePendingCallbacks() {
+    std::queue<std::function<void()>> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(pendingMutex_);
+        callbacks.swap(pendingCallbacks_);
+    }
+    while (!callbacks.empty()) {
+        callbacks.front()();
+        callbacks.pop();
+    }
 }
 
 } // namespace ezNet

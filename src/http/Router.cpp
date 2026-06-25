@@ -85,27 +85,29 @@ void Router::addRoute(const std::string& method, const std::string& path, Handle
     node->handler = std::move(handler);
 }
 
-bool Router::route(HttpRequest& req, HttpResponse* resp) const {
+bool Router::route(HttpRequest& req, HttpResponse* resp,
+                    std::shared_ptr<Connection> conn) const {
     auto methodIt = methodRoots_.find(req.methodRef());
     if (methodIt != methodRoots_.end()) {
         auto segments = splitPath(req.pathRef());
         req.pathParams_.clear();
-        if (match(methodIt->second.get(), segments, 0, req, resp)) {
+        if (match(methodIt->second.get(), segments, 0, req, resp, conn)) {
             return true;
         }
     }
     if (defaultHandler_) {
-        defaultHandler_(req, resp);
+        defaultHandler_(req, resp, conn);
         return true;
     }
     return false;
 }
 
 bool Router::match(RadixNode* node, const std::vector<std::string>& segments,
-                   size_t index, HttpRequest& req, HttpResponse* resp) const {
+                   size_t index, HttpRequest& req, HttpResponse* resp,
+                   std::shared_ptr<Connection> conn) const {
     if (index == segments.size()) {
         if (node->handler) {
-            node->handler(req, resp);
+            node->handler(req, resp, conn);
             return true;
         }
         return false;
@@ -115,14 +117,14 @@ bool Router::match(RadixNode* node, const std::vector<std::string>& segments,
 
     auto childIt = node->children.find(seg);
     if (childIt != node->children.end()) {
-        if (match(childIt->second.get(), segments, index + 1, req, resp)) {
+        if (match(childIt->second.get(), segments, index + 1, req, resp, conn)) {
             return true;
         }
     }
 
     if (node->paramChild) {
         req.setPathParam(node->paramChild->segment, urlDecode(seg));
-        if (match(node->paramChild.get(), segments, index + 1, req, resp)) {
+        if (match(node->paramChild.get(), segments, index + 1, req, resp, conn)) {
             return true;
         }
     }

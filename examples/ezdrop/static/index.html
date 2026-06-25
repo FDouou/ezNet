@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ezdrop - 内网文件互传</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;max-width:720px;margin:auto;padding:24px;background:#f5f5f5}
+h1{text-align:center;color:#333;margin-bottom:24px;border-bottom:3px solid #4CAF50;padding-bottom:12px}
+.box{background:#fff;border-radius:12px;padding:24px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.box h3{color:#4CAF50;margin-bottom:16px}
+label{display:block;margin:8px 0 4px;color:#555;font-size:14px}
+input[type=file]{width:100%;padding:8px;border:2px dashed #ccc;border-radius:8px;margin-bottom:8px}
+input[type=number],input[type=text]{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:16px}
+button{background:#4CAF50;color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:8px;width:100%}
+button:hover{background:#45a049}
+.drop-zone{border:2px dashed #bbb;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;margin-bottom:12px;color:#888;font-size:16px;transition:border-color .2s,background .2s;user-select:none}
+.drop-zone:hover{border-color:#4CAF50;background:#f1f8e9;color:#4CAF50}
+.drop-zone.dragover{border-color:#4CAF50;background:#e8f5e9;color:#4CAF50;transform:scale(1.01)}
+#up-prog,#dl-prog{margin-top:12px;padding:12px;background:#e8f5e9;border-radius:8px;display:none;font-size:14px;color:#333}
+#up-prog .bar,#dl-prog .bar{height:8px;background:#4CAF50;border-radius:4px;width:0%;transition:width .2s}
+#up-out{margin-top:12px;padding:16px;background:#fff3cd;border-radius:8px;display:none;text-align:center}
+#up-out .code{font-size:48px;font-weight:bold;color:#4CAF50;letter-spacing:4px}
+#up-out .info{font-size:14px;color:#666;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>ezdrop 内网文件互传</h1>
+
+<div class="box">
+<h3>📤 发送文件</h3>
+<div class="drop-zone" id="drop-zone">
+  📤 点击选择文件 或拖放文件/文件夹到此处
+</div>
+<input type="file" id="f-files" multiple style="display:none">
+<label>过期时间（分钟）：</label>
+<input type="number" id="expire" value="10" min="1" max="1440">
+
+<div id="up-prog">
+  <div class="bar" id="up-bar"></div>
+  <div id="up-text"></div>
+</div>
+<div id="up-out">
+  <div>取件码：</div>
+  <div class="code" id="up-code"></div>
+  <div class="info" id="up-info"></div>
+</div>
+</div>
+
+<div class="box">
+<h3>📥 凭取件码下载</h3>
+<label>输入 6 位取件码：</label>
+<input type="text" id="code" placeholder="例如 123456" maxlength="6" pattern="[0-9]{6}">
+<button onclick="downloadFile()">下载文件</button>
+<div id="dl-prog">
+  <div class="bar" id="dl-bar"></div>
+  <div id="dl-text"></div>
+</div>
+</div>
+
+<script>
+// ============ 拖放目录递归遍历 ============
+function traverseFileTree(item, path, filesArray, done) {
+  if (item.isFile) {
+    item.file(function(file) {
+      file._relativePath = path + file.name;
+      filesArray.push(file);
+      done();
+    }, function() {
+      done(); // 读取失败也继续
+    });
+  } else if (item.isDirectory) {
+    var dirReader = item.createReader();
+    dirReader.readEntries(function(entries) {
+      if (entries.length === 0) {
+        done();
+        return;
+      }
+      var remaining = entries.length;
+      for (var i = 0; i < entries.length; i++) {
+        (function(entry) {
+          traverseFileTree(entry, path + item.name + '/', filesArray, function() {
+            remaining--;
+            if (remaining === 0) done();
+          });
+        })(entries[i]);
+      }
+    }, function() {
+      done(); // 读取目录失败也继续
+    });
+  } else {
+    done();
+  }
+}
+
+// ============ 核心上传函数 ============
+function doUpload(files) {
+  if (!files || !files.length) { alert('请选择文件或目录'); return; }
+
+  var fd = new FormData();
+  var hasPathSeparator = false;
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    var fileName = f._relativePath || f.name;
+    if (fileName.indexOf('/') !== -1 || fileName.indexOf('\\') !== -1) {
+      hasPathSeparator = true;
+    }
+    fd.append('files', f, fileName);
+  }
+  fd.append('mode', hasPathSeparator ? 'directory' : 'files');
+  fd.append('expire', document.getElementById('expire').value);
+
+  var progDiv = document.getElementById('up-prog');
+  var bar = document.getElementById('up-bar');
+  var text = document.getElementById('up-text');
+  var outDiv = document.getElementById('up-out');
+  var start = Date.now();
+
+  // 重置前一次上传结果
+  outDiv.style.display = 'none';
+  bar.style.width = '0%';
+  progDiv.style.display = 'block';
+
+  var xhr = new XMLHttpRequest();
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      var pct = (e.loaded / e.total * 100).toFixed(1);
+      bar.style.width = pct + '%';
+      var elapsed = (Date.now() - start) / 1000;
+      var speed = elapsed > 0 ? (e.loaded / elapsed / 1024).toFixed(0) : 0;
+      text.textContent = pct + '% (' + speed + ' KB/s)';
+    }
+  };
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var r = JSON.parse(xhr.responseText);
+        outDiv.style.display = 'block';
+        document.getElementById('up-code').textContent = r.code;
+        document.getElementById('up-info').textContent =
+          '文件名: ' + (r.name || '') + ' | 大小: ' + formatSize(r.size || 0);
+      } catch(e) {
+        outDiv.innerHTML =
+          '<div style="color:red">解析失败: ' + xhr.responseText + '</div>';
+        outDiv.style.display = 'block';
+      }
+    } else {
+      outDiv.innerHTML =
+        '<div style="color:red">上传失败: ' + xhr.status + '</div>';
+      outDiv.style.display = 'block';
+    }
+    progDiv.style.display = 'none';
+    bar.style.width = '0%';
+  };
+  xhr.onerror = function() {
+    outDiv.innerHTML = '<div style="color:red">网络错误</div>';
+    outDiv.style.display = 'block';
+    progDiv.style.display = 'none';
+  };
+  xhr.open('POST', '/upload');
+  xhr.send(fd);
+}
+
+// ============ 拖放事件处理 ============
+(function() {
+  var dropZone = document.getElementById('drop-zone');
+  var fileInput = document.getElementById('f-files');
+
+  // 点击 drop zone → 打开文件选择器
+  dropZone.addEventListener('click', function() {
+    fileInput.click();
+  });
+
+  // 拖放悬停
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('dragover');
+  });
+
+  // 拖放离开
+  dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('dragover');
+  });
+
+  // 拖放释放
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('dragover');
+
+    var items = e.dataTransfer.items;
+    var filesArray = [];
+
+    // 检查是否支持 webkitGetAsEntry（Chrome/Edge 支持目录拖放）
+    if (items && items.length > 0 && typeof items[0].webkitGetAsEntry === 'function') {
+      var remaining = items.length;
+      if (remaining === 0) return;
+
+      for (var i = 0; i < items.length; i++) {
+        var entry = items[i].webkitGetAsEntry();
+        if (entry) {
+          (function(ent) {
+            traverseFileTree(ent, '', filesArray, function() {
+              remaining--;
+              if (remaining === 0 && filesArray.length > 0) {
+                doUpload(filesArray);
+              }
+            });
+          })(entry);
+        } else {
+          remaining--;
+          if (remaining === 0 && filesArray.length > 0) {
+            doUpload(filesArray);
+          }
+        }
+      }
+    } else {
+      // 降级方案（Firefox 等不支持 webkitGetAsEntry 的浏览器）
+      var dtFiles = e.dataTransfer.files;
+      if (dtFiles.length > 0) {
+        for (var i = 0; i < dtFiles.length; i++) {
+          filesArray.push(dtFiles[i]);
+        }
+        doUpload(filesArray);
+      }
+    }
+  });
+
+  // 文件选择 input 变化
+  fileInput.addEventListener('change', function() {
+    var files = [];
+    for (var i = 0; i < this.files.length; i++) {
+      var f = this.files[i];
+      f._relativePath = f.webkitRelativePath || f.name;
+      files.push(f);
+    }
+    if (files.length > 0) {
+      doUpload(files);
+    }
+    this.value = ''; // 重置 input，允许再次选择相同文件
+  });
+})();
+
+// ============ 下载 ============
+function downloadFile() {
+  var code = document.getElementById('code').value.trim();
+  if (!/^\d{6}$/.test(code)) { alert('请输入 6 位取件码'); return; }
+  location.href = '/d/' + code;
+}
+
+// ============ 工具函数 ============
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+</script>
+</body>
+</html>

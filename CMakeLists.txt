@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Release 编译优化
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG" CACHE STRING "" FORCE)
 set(CMAKE_C_FLAGS_RELEASE "-O3 -march=native -DNDEBUG" CACHE STRING "" FORCE)
 
@@ -28,10 +31,14 @@ add_executable(ezNet
     src/udp/CustomProtocol.cpp
     src/util/Logger.cpp
     src/util/Config.cpp
+    src/util/ThreadPool.cpp
 )
 
 target_include_directories(ezNet PUBLIC src)
 target_link_libraries(ezNet http_parser)
+
+# examples
+add_subdirectory(examples)
 
 # tests
 add_executable(eventloop_test

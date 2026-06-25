@@ -2,9 +2,12 @@
 
 #include <sys/epoll.h>
 #include <unistd.h>
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
+#include <queue>
+#include <mutex>
 #include "core/TimeWheel.h"
 
 namespace ezNet {
@@ -31,12 +34,17 @@ public:
     void loop();
     void stop();
 
+    /// 跨线程回调：线程安全，任意线程调用，回调会在 EventLoop 线程执行
+    void runInLoop(std::function<void()> cb);
+
     TimeWheel& timeWheel() { return timeWheel_; }
 
 private:
+    void executePendingCallbacks();
+
     int epollFd_;
     TriggerMode triggerMode_;
-    bool running_;
+    std::atomic<bool> running_;
     std::vector<struct epoll_event> events_;
 
     struct FdContext {
@@ -49,6 +57,10 @@ private:
 
     int timerFd_;
     TimeWheel timeWheel_;
+
+    // runInLoop 相关
+    std::queue<std::function<void()>> pendingCallbacks_;
+    mutable std::mutex pendingMutex_;
 };
 
 } // namespace ezNet

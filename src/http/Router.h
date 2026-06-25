@@ -10,13 +10,17 @@
 
 namespace ezNet {
 
+class Connection;
+
 class Router {
 public:
-    using Handler = std::function<void(const HttpRequest& req, HttpResponse* resp)>;
+    using Handler = std::function<void(const HttpRequest& req, HttpResponse* resp,
+                                        std::shared_ptr<Connection> conn)>;
 
     void addRoute(const std::string& method, const std::string& path, Handler handler);
 
-    bool route(HttpRequest& req, HttpResponse* resp) const;
+    bool route(HttpRequest& req, HttpResponse* resp,
+               std::shared_ptr<Connection> conn) const;
 
     void setDefaultHandler(Handler handler);
 
@@ -30,7 +34,8 @@ private:
 
     RadixNode* getOrCreateMethodRoot(const std::string& method);
     bool match(RadixNode* node, const std::vector<std::string>& segments,
-               size_t index, HttpRequest& req, HttpResponse* resp) const;
+               size_t index, HttpRequest& req, HttpResponse* resp,
+               std::shared_ptr<Connection> conn) const;
 
     std::unordered_map<std::string, std::unique_ptr<RadixNode>> methodRoots_;
     Handler defaultHandler_ = nullptr;

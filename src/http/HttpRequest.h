@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -35,6 +36,8 @@ public:
     void setHeader(const std::string& name, const std::string& value);
 
     const std::string& body() const;
+    /// 消费 body：将 body 移出，避免拷贝（用于异步传递大数据）
+    std::string consumeBody();
     void setBody(const std::string& body);
     void appendBody(const char* data, size_t len);
 
@@ -50,6 +53,12 @@ public:
     int httpMinor() const;
     void setHttpVersion(int major, int minor);
 
+    // Range 请求（断点续传）
+    bool hasRange() const;
+    int64_t rangeStart() const;
+    int64_t rangeEnd() const;
+    void parseRange();
+
 private:
     std::string method_;
     std::string url_;
@@ -61,6 +70,11 @@ private:
     int httpMajor_;
     int httpMinor_;
     std::unordered_map<std::string, std::string> pathParams_;
+
+    // Range 请求相关
+    int64_t rangeStart_ = 0;
+    int64_t rangeEnd_ = -1;    // -1 表示到文件末尾
+    bool hasRange_ = false;
 };
 
 } // namespace ezNet

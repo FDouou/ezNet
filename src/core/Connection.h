@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <sys/types.h>
 #include "core/Buffer.h"
 #include "core/EventLoop.h"
 
@@ -33,6 +34,9 @@ public:
 
     void send(const std::string& data);
     void send(const char* data, size_t len);
+
+    // 文件发送（sendfile 零拷贝），支持偏移量和可选长度
+    void sendFile(const std::string& filePath, size_t fileSize, off_t offset = 0, size_t length = 0);
 
     void setDataCallback(DataCallback cb);
     void setCloseCallback(CloseCallback cb);
@@ -78,6 +82,14 @@ private:
 
     void* userData_ = nullptr;
     void* wheelEntry_ = nullptr;
+
+    // 文件发送（sendfile）
+    int fileFd_ = -1;
+    size_t fileSentSize_ = 0;   // 已发送的字节数（相对于 fileOffset_）
+    size_t fileSize_ = 0;       // 文件总大小
+    off_t fileOffset_ = 0;      // sendfile 起始偏移量
+    size_t bytesToSend_ = 0;    // 需要发送的总字节数（0 表示到文件末尾）
+    bool sendingFile_ = false;
 };
 
 } // namespace ezNet

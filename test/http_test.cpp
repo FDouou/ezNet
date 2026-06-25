@@ -201,7 +201,8 @@ void test_http_response_reset() {
 void test_router_add_and_route() {
     Router router;
     bool called = false;
-    router.addRoute("GET", "/hello", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/hello", [&](const HttpRequest& req, HttpResponse* resp,
+                                          std::shared_ptr<Connection>) {
         called = true;
         resp->setBody("hello");
     });
@@ -210,39 +211,39 @@ void test_router_add_and_route() {
     req.setMethod("GET");
     req.setUrl("/hello");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(handled, "route: matched handler returns true");
     EXPECT(called, "route: handler was called");
 }
 
 void test_router_no_match() {
     Router router;
-    router.addRoute("GET", "/hello", [](const HttpRequest&, HttpResponse*) {});
+    router.addRoute("GET", "/hello", [](const HttpRequest&, HttpResponse*, std::shared_ptr<Connection>) {});
 
     HttpRequest req;
     req.setMethod("GET");
     req.setUrl("/unknown");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(!handled, "route: no match returns false");
 }
 
 void test_router_method_mismatch() {
     Router router;
-    router.addRoute("GET", "/hello", [](const HttpRequest&, HttpResponse*) {});
+    router.addRoute("GET", "/hello", [](const HttpRequest&, HttpResponse*, std::shared_ptr<Connection>) {});
 
     HttpRequest req;
     req.setMethod("POST");
     req.setUrl("/hello");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(!handled, "route: method mismatch returns false");
 }
 
 void test_router_default_handler() {
     Router router;
     bool defaultCalled = false;
-    router.setDefaultHandler([&](const HttpRequest& req, HttpResponse* resp) {
+    router.setDefaultHandler([&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         defaultCalled = true;
         resp->setStatusCode(404);
     });
@@ -251,7 +252,7 @@ void test_router_default_handler() {
     req.setMethod("GET");
     req.setUrl("/noexist");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(handled, "route: default handler returns true");
     EXPECT(defaultCalled, "route: default handler called");
     EXPECT(resp.statusCode() == 404, "route: default handler set 404");
@@ -259,32 +260,32 @@ void test_router_default_handler() {
 
 void test_router_multiple_routes() {
     Router router;
-    router.addRoute("GET", "/a", [](const HttpRequest&, HttpResponse* resp) { resp->setBody("A"); });
-    router.addRoute("GET", "/b", [](const HttpRequest&, HttpResponse* resp) { resp->setBody("B"); });
-    router.addRoute("POST", "/a", [](const HttpRequest&, HttpResponse* resp) { resp->setBody("PA"); });
+    router.addRoute("GET", "/a", [](const HttpRequest&, HttpResponse* resp, std::shared_ptr<Connection>) { resp->setBody("A"); });
+    router.addRoute("GET", "/b", [](const HttpRequest&, HttpResponse* resp, std::shared_ptr<Connection>) { resp->setBody("B"); });
+    router.addRoute("POST", "/a", [](const HttpRequest&, HttpResponse* resp, std::shared_ptr<Connection>) { resp->setBody("PA"); });
 
     HttpRequest req;
     HttpResponse resp;
 
     req.setMethod("GET"); req.setUrl("/a");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "A", "route: GET /a -> A");
 
     resp.reset();
     req.setMethod("GET"); req.setUrl("/b");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "B", "route: GET /b -> B");
 
     resp.reset();
     req.setMethod("POST"); req.setUrl("/a");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "PA", "route: POST /a -> PA");
 }
 
 void test_router_path_param_single() {
     Router router;
     std::string capturedId;
-    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParam("id");
         resp->setBody("user:" + capturedId);
     });
@@ -293,7 +294,7 @@ void test_router_path_param_single() {
     req.setMethod("GET");
     req.setUrl("/users/42");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(handled, "route: /users/:id matched /users/42");
     EXPECT(capturedId == "42", "route: path param id=42");
     EXPECT(resp.body() == "user:42", "route: handler received correct param");
@@ -302,7 +303,7 @@ void test_router_path_param_single() {
 void test_router_path_param_multi() {
     Router router;
     std::string vid, uid;
-    router.addRoute("GET", "/api/:version/users/:uid", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/api/:version/users/:uid", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         vid = req.pathParam("version");
         uid = req.pathParam("uid");
         resp->setBody(vid + "/" + uid);
@@ -312,7 +313,7 @@ void test_router_path_param_multi() {
     req.setMethod("GET");
     req.setUrl("/api/v2/users/99");
     HttpResponse resp;
-    bool handled = router.route(req, &resp);
+    bool handled = router.route(req, &resp, nullptr);
     EXPECT(handled, "route: multi-param matched");
     EXPECT(vid == "v2", "route: path param version=v2");
     EXPECT(uid == "99", "route: path param uid=99");
@@ -322,10 +323,10 @@ void test_router_path_param_multi() {
 void test_router_exact_preferred_over_param() {
     Router router;
     std::string capturedId;
-    router.addRoute("GET", "/users/me", [](const HttpRequest&, HttpResponse* resp) {
+    router.addRoute("GET", "/users/me", [](const HttpRequest&, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody("current_user");
     });
-    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParam("id");
         resp->setBody("other_user");
     });
@@ -334,22 +335,22 @@ void test_router_exact_preferred_over_param() {
     HttpResponse resp;
 
     req.setMethod("GET"); req.setUrl("/users/me");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "current_user", "route: exact /users/me matched before :id");
 
     resp.reset(); capturedId.clear();
     req.setMethod("GET"); req.setUrl("/users/42");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "other_user", "route: /users/:id matched /users/42");
     EXPECT(capturedId == "42", "route: param captured in fallback");
 }
 
 void test_router_different_methods_same_path() {
     Router router;
-    router.addRoute("GET", "/items/:id", [](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/items/:id", [](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody("GET:" + req.pathParam("id"));
     });
-    router.addRoute("DELETE", "/items/:id", [](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("DELETE", "/items/:id", [](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody("DELETE:" + req.pathParam("id"));
     });
 
@@ -357,18 +358,18 @@ void test_router_different_methods_same_path() {
     HttpResponse resp;
 
     req.setMethod("GET"); req.setUrl("/items/123");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "GET:123", "route: GET /items/:id");
 
     resp.reset();
     req.setMethod("DELETE"); req.setUrl("/items/123");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "DELETE:123", "route: DELETE /items/:id");
 }
 
 void test_router_path_param_not_set_for_missing() {
     Router router;
-    router.addRoute("GET", "/users/:id", [](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/users/:id", [](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody(req.pathParam("id"));
     });
 
@@ -376,16 +377,16 @@ void test_router_path_param_not_set_for_missing() {
     req.setMethod("GET");
     req.setUrl("/users/55");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(req.pathParam("nonexistent").empty(), "route: missing path param returns empty string");
 }
 
 void test_router_deep_nesting() {
     Router router;
-    router.addRoute("GET", "/a/b/c/d/e", [](const HttpRequest&, HttpResponse* resp) {
+    router.addRoute("GET", "/a/b/c/d/e", [](const HttpRequest&, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody("deep");
     });
-    router.addRoute("GET", "/a/:p1/c/:p2/e", [](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/a/:p1/c/:p2/e", [](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         resp->setBody(req.pathParam("p1") + "/" + req.pathParam("p2"));
     });
 
@@ -393,19 +394,19 @@ void test_router_deep_nesting() {
     HttpResponse resp;
 
     req.setMethod("GET"); req.setUrl("/a/b/c/d/e");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "deep", "route: deep exact match");
 
     resp.reset();
     req.setMethod("GET"); req.setUrl("/a/xxx/c/yyy/e");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(resp.body() == "xxx/yyy", "route: deep param match");
 }
 
 void test_router_path_param_as_int() {
     Router router;
     int capturedId = 0;
-    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParamAsInt("id");
         resp->setBody("ok");
     });
@@ -414,19 +415,19 @@ void test_router_path_param_as_int() {
     req.setMethod("GET");
     req.setUrl("/users/42");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(capturedId == 42, "route: pathParamAsInt returns 42 from /users/42");
 
     capturedId = -1;
     req.setMethod("GET"); req.setUrl("/users/999");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(capturedId == 999, "route: pathParamAsInt returns 999");
 }
 
 void test_router_path_param_as_int_invalid() {
     Router router;
     int capturedId = -1;
-    router.addRoute("GET", "/items/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/items/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParamAsInt("id", -999);
         resp->setBody("ok");
     });
@@ -435,14 +436,14 @@ void test_router_path_param_as_int_invalid() {
     req.setMethod("GET");
     req.setUrl("/items/notanumber");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(capturedId == -999, "route: pathParamAsInt returns default for non-numeric");
 }
 
 void test_router_path_param_as_int_missing() {
     Router router;
     int capturedId = -1;
-    router.addRoute("GET", "/data/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/data/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParamAsInt("nonexistent", -1);
         resp->setBody("ok");
     });
@@ -451,14 +452,14 @@ void test_router_path_param_as_int_missing() {
     req.setMethod("GET");
     req.setUrl("/data/55");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(capturedId == -1, "route: pathParamAsInt returns default for missing param");
 }
 
 void test_router_path_param_url_decode() {
     Router router;
     std::string name;
-    router.addRoute("GET", "/hello/:name", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/hello/:name", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         name = req.pathParam("name");
         resp->setBody(name);
     });
@@ -467,20 +468,20 @@ void test_router_path_param_url_decode() {
     HttpResponse resp;
 
     req.setMethod("GET"); req.setUrl("/hello/hello%20world");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(name == "hello world", "route: %20 decoded to space");
     EXPECT(resp.body() == "hello world", "route: decoded value in handler");
 
     name.clear(); resp.reset();
     req.setMethod("GET"); req.setUrl("/hello/a%2Fb%3Dc");
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(name == "a/b=c", "route: %2F %3D decoded");
 }
 
 void test_router_path_param_plus_to_space() {
     Router router;
     std::string query;
-    router.addRoute("GET", "/search/:q", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/search/:q", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         query = req.pathParam("q");
         resp->setBody(query);
     });
@@ -489,14 +490,14 @@ void test_router_path_param_plus_to_space() {
     req.setMethod("GET");
     req.setUrl("/search/hello+world");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(query == "hello world", "route: + decoded to space");
 }
 
 void test_router_path_param_url_decode_digits() {
     Router router;
     int capturedId = 0;
-    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp) {
+    router.addRoute("GET", "/users/:id", [&](const HttpRequest& req, HttpResponse* resp, std::shared_ptr<Connection>) {
         capturedId = req.pathParamAsInt("id");
         resp->setBody("ok");
     });
@@ -505,18 +506,18 @@ void test_router_path_param_url_decode_digits() {
     req.setMethod("GET");
     req.setUrl("/users/42");
     HttpResponse resp;
-    router.route(req, &resp);
+    router.route(req, &resp, nullptr);
     EXPECT(capturedId == 42, "route: digits pass through urlDecode unchanged");
 }
 
 void test_router_default_always_returns_true() {
     Router router;
-    router.setDefaultHandler([](const HttpRequest&, HttpResponse*) {});
+    router.setDefaultHandler([](const HttpRequest&, HttpResponse*, std::shared_ptr<Connection>) {});
 
     HttpRequest req;
     req.setMethod("ANY"); req.setUrl("/any");
     HttpResponse resp;
-    EXPECT(router.route(req, &resp), "router with default handler always returns true");
+    EXPECT(router.route(req, &resp, nullptr), "router with default handler always returns true");
 }
 
 int main() {

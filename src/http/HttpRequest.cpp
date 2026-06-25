@@ -19,6 +19,9 @@ void HttpRequest::reset() {
     httpMajor_ = 1;
     httpMinor_ = 1;
     pathParams_.clear();
+    rangeStart_ = 0;
+    rangeEnd_ = -1;
+    hasRange_ = false;
 }
 
 std::string HttpRequest::method() const {
@@ -113,6 +116,10 @@ const std::string& HttpRequest::body() const {
     return body_;
 }
 
+std::string HttpRequest::consumeBody() {
+    return std::move(body_);
+}
+
 void HttpRequest::setBody(const std::string& body) {
     body_ = body;
 }
@@ -175,6 +182,87 @@ double HttpRequest::pathParamAsDouble(const std::string& name, double defaultVal
         return std::stod(it->second);
     } catch (...) {
         return defaultVal;
+    }
+}
+
+bool HttpRequest::hasRange() const {
+    return hasRange_;
+}
+
+int64_t HttpRequest::rangeStart() const {
+    return rangeStart_;
+}
+
+int64_t HttpRequest::rangeEnd() const {
+    return rangeEnd_;
+}
+
+void HttpRequest::parseRange() {
+    hasRange_ = false;
+    rangeStart_ = 0;
+    rangeEnd_ = -1;
+
+    std::string rangeVal = header("Range");
+    if (rangeVal.empty()) {
+        return;
+    }
+
+    // 格式: bytes=START-END, bytes=START-, bytes=-SUFFIX
+    const std::string prefix = "bytes=";
+    if (rangeVal.size() <= prefix.size() ||
+        rangeVal.compare(0, prefix.size(), prefix) != 0) {
+        return;
+    }
+
+    std::string rangeSpec = rangeVal.substr(prefix.size());
+
+    // 多段 Range（包含逗号）暂不支持
+    if (rangeSpec.find(',') != std::string::npos) {
+        return;
+    }
+
+    auto dashPos = rangeSpec.find('-');
+    if (dashPos == std::string::npos) {
+        return;
+    }
+
+    std::string startStr = rangeSpec.substr(0, dashPos);
+    std::string endStr = rangeSpec.substr(dashPos + 1);
+
+    // bytes=- 无效
+    if (startStr.empty() && endStr.empty()) {
+        return;
+    }
+
+    try {
+        if (startStr.empty()) {
+            // bytes=-SUFFIX：最后 SUFFIX 字节
+            rangeStart_ = -1;  // 标记为 suffix 请求
+            rangeEnd_ = std::stoll(endStr);
+        } else {
+            rangeStart_ = std::stoll(startStr);
+            if (rangeStart_ < 0) {
+                rangeStart_ = 0;
+                rangeEnd_ = -1;
+                return;
+            }
+            if (endStr.empty()) {
+                // bytes=START-：从 START 到末尾
+                rangeEnd_ = -1;
+            } else {
+                // bytes=START-END
+                rangeEnd_ = std::stoll(endStr);
+                if (rangeEnd_ < 0) {
+                    rangeEnd_ = -1;
+                }
+            }
+        }
+        hasRange_ = true;
+    } catch (...) {
+        // 解析失败，忽略 Range
+        hasRange_ = false;
+        rangeStart_ = 0;
+        rangeEnd_ = -1;
     }
 }
 
