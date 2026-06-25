@@ -1,6 +1,5 @@
 # Build
-build/
-build_wsl/
+build*/
 
 # IDE
 .vscode/
@@ -37,3 +36,12 @@ TODO
 TODO.md
 proj.md
 fix.md
+
+.opencode/
+opencode.json
+
+# Dev tooling scripts
+createAgents.ps1
+
+# Session files
+session-*.md
