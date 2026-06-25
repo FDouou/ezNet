@@ -427,6 +427,19 @@ EzdropServer::~EzdropServer() {
     if (sweeperThread_.joinable()) {
         sweeperThread_.join();
     }
+    // 关闭时清理所有本地存储文件
+    std::lock_guard<std::mutex> lk(metaMutex_);
+    for (auto& [code, meta] : codes_) {
+        ::unlink(meta->storagePath.c_str());
+        auto lastSlash = meta->storagePath.rfind('/');
+        if (lastSlash != std::string::npos) {
+            std::string codeDir = meta->storagePath.substr(0, lastSlash);
+            removeDir(codeDir);
+        }
+    }
+    size_t count = codes_.size();
+    codes_.clear();
+    LOG_INFO("EzdropServer shutdown: cleaned %zu stored files", count);
 }
 
 // ============ 取件码生成 ============

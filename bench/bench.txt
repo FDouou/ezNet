@@ -1,57 +1,58 @@
 wrk -t4 -c100 -d10 -L
 nginx 
+  4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   709.05us  492.09us  28.92ms   99.11%
-    Req/Sec    36.24k     2.67k   43.84k    69.55%
+    Latency   580.03us  360.12us  23.30ms   98.54%
+    Req/Sec    44.07k     3.32k   64.85k    78.91%
   Latency Distribution
-     50%  676.00us
-     75%  749.00us
-     90%  830.00us
-     99%    1.15ms
-  1456646 requests in 10.10s, 288.94MB read
-Requests/sec: 144219.29
-Transfer/sec:     28.61MB
+     50%  553.00us
+     75%  626.00us
+     90%  710.00us
+     99%    1.00ms
+  1766891 requests in 10.10s, 350.48MB read
+Requests/sec: 174940.48
+Transfer/sec:     34.70MB
 
 ezNet
- 4 threads and 100 connections
+  4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   574.23us  137.09us   2.18ms   74.21%
-    Req/Sec    43.45k     2.75k   50.12k    64.36%
+    Latency   586.51us  121.32us   4.38ms   74.49%
+    Req/Sec    42.59k     2.61k   60.48k    79.90%
   Latency Distribution
-     50%  561.00us
-     75%  643.00us
-     90%  741.00us
-     99%    0.99ms
-  1746466 requests in 10.10s, 154.90MB read
-Requests/sec: 172920.18
-Transfer/sec:     15.34MB
+     50%  576.00us
+     75%  647.00us
+     90%  732.00us
+     99%    0.94ms
+  1707544 requests in 10.10s, 151.44MB read
+Requests/sec: 169069.30
+Transfer/sec:     15.00MB
 
 
 wrk -t4 -c500 -d10 -L
 nginx
- 4 threads and 500 connections
+  4 threads and 500 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     9.64ms   47.28ms 769.84ms   97.71%
-    Req/Sec    36.88k     5.84k   78.11k    91.96%
+    Latency     7.57ms   37.91ms 661.71ms   97.84%
+    Req/Sec    43.85k     7.74k  121.42k    95.00%
   Latency Distribution
-     50%    3.35ms
-     75%    3.63ms
-     90%    3.96ms
-     99%  264.18ms
-  1460928 requests in 10.02s, 289.79MB read
-Requests/sec: 145838.87
-Transfer/sec:     28.93MB
+     50%    2.79ms
+     75%    3.04ms
+     90%    3.34ms
+     99%  195.58ms
+  1745561 requests in 10.03s, 346.25MB read
+Requests/sec: 174028.67
+Transfer/sec:     34.52MB
 
 ezNet
   4 threads and 500 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     2.92ms  384.11us   6.94ms   73.92%
-    Req/Sec    43.02k     2.95k   52.28k    78.50%
+    Latency     3.01ms  433.39us  10.54ms   74.21%
+    Req/Sec    41.72k     3.50k   53.10k    73.00%
   Latency Distribution
-     50%    2.89ms
-     75%    3.12ms
-     90%    3.36ms
-     99%    4.01ms
-  1711308 requests in 10.02s, 151.78MB read
-Requests/sec: 170862.75
-Transfer/sec:     15.15MB
+     50%    2.98ms
+     75%    3.24ms
+     90%    3.52ms
+     99%    4.12ms
+  1660486 requests in 10.03s, 147.27MB read
+Requests/sec: 165472.47
+Transfer/sec:     14.68MB

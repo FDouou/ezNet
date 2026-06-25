@@ -18,6 +18,8 @@ button:hover{background:#45a049}
 .drop-zone{border:2px dashed #bbb;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;margin-bottom:12px;color:#888;font-size:16px;transition:border-color .2s,background .2s;user-select:none}
 .drop-zone:hover{border-color:#4CAF50;background:#f1f8e9;color:#4CAF50}
 .drop-zone.dragover{border-color:#4CAF50;background:#e8f5e9;color:#4CAF50;transform:scale(1.01)}
+.drop-zone .dir-link{display:block;margin-top:6px;font-size:13px;color:#888;text-decoration:underline;cursor:pointer}
+.drop-zone .dir-link:hover{color:#4CAF50}
 #up-prog,#dl-prog{margin-top:12px;padding:12px;background:#e8f5e9;border-radius:8px;display:none;font-size:14px;color:#333}
 #up-prog .bar,#dl-prog .bar{height:8px;background:#4CAF50;border-radius:4px;width:0%;transition:width .2s}
 #up-out{margin-top:12px;padding:16px;background:#fff3cd;border-radius:8px;display:none;text-align:center}
@@ -32,8 +34,10 @@ button:hover{background:#45a049}
 <h3>📤 发送文件</h3>
 <div class="drop-zone" id="drop-zone">
   📤 点击选择文件 或拖放文件/文件夹到此处
+  <span class="dir-link" id="dir-link">或点击选择文件夹</span>
 </div>
 <input type="file" id="f-files" multiple style="display:none">
+<input type="file" id="f-dir" webkitdirectory style="display:none">
 <label>过期时间（分钟）：</label>
 <input type="number" id="expire" value="10" min="1" max="1440">
 
@@ -228,6 +232,26 @@ function doUpload(files) {
         doUpload(filesArray);
       }
     }
+  });
+
+  // 目录选择链接点击 → 打开目录选择器
+  document.getElementById('dir-link').addEventListener('click', function(e) {
+    e.stopPropagation();  // 阻止冒泡，不要触发文件选择器
+    document.getElementById('f-dir').click();
+  });
+
+  // 目录选择 input 变化
+  document.getElementById('f-dir').addEventListener('change', function() {
+    var files = [];
+    for (var i = 0; i < this.files.length; i++) {
+      var f = this.files[i];
+      f._relativePath = f.webkitRelativePath || f.name;
+      files.push(f);
+    }
+    if (files.length > 0) {
+      doUpload(files);
+    }
+    this.value = '';
   });
 
   // 文件选择 input 变化

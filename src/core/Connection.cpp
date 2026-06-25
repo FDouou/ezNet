@@ -177,7 +177,7 @@ void Connection::resetForNextRequest() {
 }
 
 void Connection::handleRead() {
-    // ET 模式：循环读取直到 EAGAIN
+    // ET 模式循环读取直到 EAGAIN
     while (true) {
         int savedErrno = 0;
         ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
@@ -186,7 +186,7 @@ void Connection::handleRead() {
             if (dataCallback_) {
                 dataCallback_(shared_from_this(), &inputBuffer_);
             }
-            continue;  // 继续读取（ET 模式下必须读完所有数据）
+            continue;
         }
         if (n == 0) {
             // EOF：对端关闭连接
