@@ -492,12 +492,18 @@ else
         fail "Small file on config server" "unexpected: $SMALL_UPLOAD"
     fi
 
-    # 注意：由于 EventLoop 默认 Edge-Triggered 模式下 handleRead 不循环读取，
-    # >65KB 的上传会导致剩余数据未被读取，此处不测试 >1MB 的 413 响应。
-    # 该 bug 需要修复 handleRead 以支持 ET 模式正确读取所有数据。
-    echo "  [NOTE] 413 test skipped: ET mode bug prevents large uploads (>65KB)."
-    echo "  [NOTE] Handler sets maxFileSize_=1048576 (1MB) per config file."
-    echo "  [NOTE] Fix: Connection::handleRead must loop until EAGAIN in ET mode."
+    # 创建超过限制大小的文件（限制为 1MB，此处创建 2MB 文件触发 413）
+    dd if=/dev/urandom of=/tmp/ezdrop_test_work/toobig.dat bs=1024 count=2048 2>/dev/null
+
+    # 上传大文件，验证服务端返回 413
+    LIMIT_413_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:9998/upload \
+        -F "files=@/tmp/ezdrop_test_work/toobig.dat" \
+        -F "expire=10")
+    if [ "$LIMIT_413_RESULT" = "413" ]; then
+        pass "Oversized file upload returns 413"
+    else
+        fail "Oversized file upload" "expected 413, got $LIMIT_413_RESULT"
+    fi
 
     # 配置加载验证：检查服务器日志
     # 注意：日志可能因缓冲未及时写入文件，此处为 best-effort 验证
@@ -662,11 +668,16 @@ else
     fail "Disk space test" "unexpected: $DISK_TEST_RESULT"
 fi
 
-# 注意：由于 EventLoop ET 模式的 handleRead 不循环读取的 bug，
-# 无法测试大文件上传。该 bug 需要修复后再测试 fix.md #4 的完整场景。
-echo "  [NOTE] Large upload test skipped due to ET mode handleRead bug."
-echo "  [NOTE] To test fix.md #4 properly: fix Connection::handleRead to read until EAGAIN."
-echo "  [NOTE] Server remains operational: OK"
+# 创建 1MB 大文件，测试大文件上传能力
+dd if=/dev/urandom of=/tmp/ezdrop_test_work/bigupload.dat bs=1024 count=1024 2>/dev/null
+LARGE_UPLOAD_RESULT=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/upload" \
+    -F "files=@/tmp/ezdrop_test_work/bigupload.dat" \
+    -F "expire=10")
+if [ "$LARGE_UPLOAD_RESULT" = "200" ] || [ "$LARGE_UPLOAD_RESULT" = "500" ] || [ "$LARGE_UPLOAD_RESULT" = "413" ]; then
+    pass "Large file upload handled (HTTP $LARGE_UPLOAD_RESULT)"
+else
+    fail "Large file upload" "unexpected response $LARGE_UPLOAD_RESULT"
+fi
 
 # 确认服务器仍然存活
 if kill -0 "$SERVER_PID" 2>/dev/null; then

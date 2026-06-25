@@ -177,19 +177,30 @@ void Connection::resetForNextRequest() {
 }
 
 void Connection::handleRead() {
-    int savedErrno = 0;
-    ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
-    if (n < 0) {
-        if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK) return;
+    // ET 模式：循环读取直到 EAGAIN
+    while (true) {
+        int savedErrno = 0;
+        ssize_t n = inputBuffer_.readFromFd(fd_, &savedErrno);
+        if (n > 0) {
+            // 成功读取数据，调用回调
+            if (dataCallback_) {
+                dataCallback_(shared_from_this(), &inputBuffer_);
+            }
+            continue;  // 继续读取（ET 模式下必须读完所有数据）
+        }
+        if (n == 0) {
+            // EOF：对端关闭连接
+            handleClose();
+            return;
+        }
+        // n < 0
+        if (savedErrno == EAGAIN || savedErrno == EWOULDBLOCK) {
+            // 数据已读完，正常返回
+            return;
+        }
+        // 真实错误
         handleError();
         return;
-    }
-    if (n == 0) {
-        handleClose();
-        return;
-    }
-    if (dataCallback_) {
-        dataCallback_(shared_from_this(), &inputBuffer_);
     }
 }
 
@@ -269,10 +280,12 @@ void Connection::handleWrite() {
         int savedErrno = 0;
         ssize_t n = outputBuffer_.writeToFd(fd_, &savedErrno);
         if (n < 0) {
-            handleError();
-            return;
+            if (savedErrno != EAGAIN && savedErrno != EWOULDBLOCK) {
+                handleError();
+            }
+            return;  // EAGAIN：等下一轮 EPOLLOUT
         }
-        if (n == 0) break;
+        if (n == 0) break;  // 写了 0 字节（不太可能）
     }
     if (outputBuffer_.readableBytes() == 0) {
         loop_->modFd(fd_, EPOLLIN, [this](uint32_t events) {

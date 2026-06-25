@@ -94,8 +94,9 @@ private:
     /// 扫描并删除过期文件
     void sweepExpired();
 
-    // 路径安全检查：提取 basename 并拒绝危险路径
-    std::string sanitizeFilename(const std::string& filename);
+    // 路径安全检查：安全化文件名，防止路径遍历攻击
+    // keepStructure=true 时保留相对路径结构（目录上传模式）
+    std::string sanitizeFilename(const std::string& filename, bool keepStructure = false);
 
     // multipart 解析
     std::string extractBoundary(const std::string& contentType);

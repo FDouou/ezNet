@@ -267,23 +267,55 @@ std::vector<MultipartPart> EzdropServer::parseMultipart(const std::string& body,
     return parts;
 }
 
-std::string EzdropServer::sanitizeFilename(const std::string& filename) {
-    // 提取 basename：去掉所有路径前缀（含 / 和 \）
+std::string EzdropServer::sanitizeFilename(const std::string& filename, bool keepStructure) {
     std::string name = filename;
-    auto lastSlash = name.rfind('/');
-    if (lastSlash != std::string::npos) {
-        name = name.substr(lastSlash + 1);
-    }
-    auto lastBackslash = name.rfind('\\');
-    if (lastBackslash != std::string::npos) {
-        name = name.substr(lastBackslash + 1);
+
+    // 1. 将所有反斜杠转换为正斜杠（统一路径分隔符）
+    for (auto& ch : name) {
+        if (ch == '\\') ch = '/';
     }
 
-    // 检查路径遍历或无效文件名
-    if (name.empty() || name == "." || name == ".." || name.find("..") != std::string::npos) {
-        return "";  // 无效
+    // 2. 检查路径遍历：拒绝包含 ".." 的路径
+    if (name.find("..") != std::string::npos) {
+        return "";
     }
-    return name;
+
+    // 3. 去掉开头的 /（绝对路径）
+    while (!name.empty() && name[0] == '/') {
+        name.erase(0, 1);
+    }
+
+    if (keepStructure) {
+        // 目录模式：保留相对路径结构，但检查每个路径段
+        std::string result;
+        size_t start = 0;
+        while (start < name.size()) {
+            size_t slash = name.find('/', start);
+            std::string segment;
+            if (slash == std::string::npos) {
+                segment = name.substr(start);
+                start = name.size();
+            } else {
+                segment = name.substr(start, slash - start);
+                start = slash + 1;
+            }
+            // 跳过空段或 "." 段
+            if (segment.empty() || segment == ".") continue;
+            if (!result.empty()) result += '/';
+            result += segment;
+        }
+        return result;
+    } else {
+        // 文件模式：仅保留 basename
+        auto lastSlash = name.rfind('/');
+        if (lastSlash != std::string::npos) {
+            name = name.substr(lastSlash + 1);
+        }
+        if (name.empty() || name == ".") {
+            return "";
+        }
+        return name;
+    }
 }
 
 std::string EzdropServer::randomSuffix() {
@@ -582,7 +614,7 @@ void EzdropServer::handleUpload(const HttpRequest& req, HttpResponse* resp) {
 
     // 5. 写入文件到临时目录（先消毒文件名防路径遍历）
     for (auto* part : fileParts) {
-        std::string safeFilename = sanitizeFilename(part->filename);
+        std::string safeFilename = sanitizeFilename(part->filename, uploadMode == "directory");
         if (safeFilename.empty()) {
             removeDir(tmpDir);
             resp->setStatusCode(400);
@@ -591,6 +623,21 @@ void EzdropServer::handleUpload(const HttpRequest& req, HttpResponse* resp) {
             return;
         }
         std::string filePath = tmpDir + "/" + safeFilename;
+        // 对于保留目录结构的情况，需要创建子目录
+        if (uploadMode == "directory") {
+            auto lastSlash = safeFilename.rfind('/');
+            if (lastSlash != std::string::npos) {
+                std::string parentDir = tmpDir + "/" + safeFilename.substr(0, lastSlash);
+                // 递归创建目录
+                std::string cur;
+                for (size_t i = 0; i < parentDir.size(); ++i) {
+                    cur += parentDir[i];
+                    if (parentDir[i] == '/' || i == parentDir.size() - 1) {
+                        mkdir(cur.c_str(), 0755);
+                    }
+                }
+            }
+        }
         if (!writeToFile(filePath, part->data.data(), part->data.size())) {
             removeDir(tmpDir);
             resp->setStatusCode(500);

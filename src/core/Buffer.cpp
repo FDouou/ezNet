@@ -108,11 +108,11 @@ ssize_t Buffer::readFromFd(int fd, int* savedErrno) {
     };
     ssize_t n = readv(fd, iov, 2);
     if (n < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return 0;
-        }
-        *savedErrno = errno;
+        *savedErrno = errno;  // 保存 errno（EAGAIN 或真实错误）
         return -1;
+    }
+    if (n == 0) {
+        return 0;  // EOF
     }
     if (static_cast<size_t>(n) <= writable) {//全部写入buffer_
         writerIndex_ += n;
@@ -126,11 +126,11 @@ ssize_t Buffer::readFromFd(int fd, int* savedErrno) {
 ssize_t Buffer::writeToFd(int fd, int* savedErrno) {
     ssize_t n = ::write(fd, peek(), readableBytes());
     if (n < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            return 0;
-        }
-        *savedErrno = errno;
+        *savedErrno = errno;  // 保存 errno（EAGAIN 或真实错误）
         return -1;
+    }
+    if (n == 0) {
+        return 0;  // 写了 0 字节（不太常见但可能）
     }
     retrieve(n);
     return n;
