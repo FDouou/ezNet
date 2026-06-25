@@ -18,9 +18,9 @@ public:
         Closing
     };
 
-    using DataCallback = std::function<void(std::shared_ptr<Connection>, Buffer*)>;
-    using CloseCallback = std::function<void(std::shared_ptr<Connection>)>;
-    using WriteCompleteCallback = std::function<void(std::shared_ptr<Connection>)>;
+    using DataCallback = std::function<void(const std::shared_ptr<Connection>&, Buffer*)>;
+    using CloseCallback = std::function<void(const std::shared_ptr<Connection>&)>;
+    using WriteCompleteCallback = std::function<void(const std::shared_ptr<Connection>&)>;
 
     Connection(EventLoop* loop, int fd);
     ~Connection();
@@ -37,6 +37,9 @@ public:
 
     // 文件发送（sendfile 零拷贝），支持偏移量和可选长度
     void sendFile(const std::string& filePath, size_t fileSize, off_t offset = 0, size_t length = 0);
+
+    // 文件发送（sendfile 零拷贝），使用已打开的文件 fd（调用方负责在失败时关闭，成功后由 Connection 接管）
+    void sendFile(int fileFd, size_t fileSize, off_t offset = 0, size_t length = 0);
 
     void setDataCallback(DataCallback cb);
     void setCloseCallback(CloseCallback cb);

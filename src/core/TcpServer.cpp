@@ -92,7 +92,7 @@ void TcpServer::handleAccept() {
         auto conn = std::make_shared<Connection>(loop_, connFd);
         connections_[connFd] = conn;
         conn->setDataCallback(dataCallback_);
-        conn->setCloseCallback([this](std::shared_ptr<Connection> c) {
+        conn->setCloseCallback([this](const std::shared_ptr<Connection>& c) {
             removeConnection(c);
         });
         conn->start();
@@ -110,7 +110,7 @@ void TcpServer::handleAccept() {
     }
 }
 
-void TcpServer::removeConnection(std::shared_ptr<Connection> conn) {
+void TcpServer::removeConnection(const std::shared_ptr<Connection>& conn) {
     if (conn->wheelEntry()) {
         loop_->timeWheel().remove(static_cast<TimeWheel::Entry*>(conn->wheelEntry()));
         conn->setWheelEntry(nullptr);

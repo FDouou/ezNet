@@ -1,16 +1,17 @@
 #include "http/HttpServer.h"
 #include "util/Logger.h"
 #include <cstring>
+#include <fcntl.h>
 
 namespace ezNet {
 
 HttpServer::HttpServer(TcpServer* tcpServer)
     : tcpServer_(tcpServer) {
     tcpServer_->setConnectionCallback(
-        [this](auto conn){ onConnection(conn); }
+        [this](const auto& conn){ onConnection(conn); }
     );
     tcpServer_->setDataCallback(
-        [this](auto conn, auto buf){ onData(conn, buf); }
+        [this](const auto& conn, auto buf){ onData(conn, buf); }
     );
 }
 
@@ -33,7 +34,7 @@ void HttpServer::start() {
     tcpServer_->start();
 }
 
-void HttpServer::onConnection(std::shared_ptr<Connection> conn) {
+void HttpServer::onConnection(const std::shared_ptr<Connection>& conn) {
     auto parserContext = std::make_shared<ParserContext>();
     
     // 初始化 http_parser
@@ -53,13 +54,13 @@ void HttpServer::onConnection(std::shared_ptr<Connection> conn) {
     conn->setUserData(parserContext.get());
 
     auto oldCb = conn->closeCallback();
-    conn->setCloseCallback([parserContext, oldCb](std::shared_ptr<Connection> c) {
+    conn->setCloseCallback([parserContext, oldCb](const std::shared_ptr<Connection>& c) {
         c->setUserData(nullptr);
         if (oldCb) oldCb(c);
     });
 
     // 注册写入完成回调，用于文件响应发送完成后处理 keepAlive
-    conn->setWriteCompleteCallback([this](std::shared_ptr<Connection> c) {
+    conn->setWriteCompleteCallback([this](const std::shared_ptr<Connection>& c) {
         // 先调用用户注册的钩子
         if (writeCompleteHook_) {
             writeCompleteHook_(c);
@@ -80,7 +81,7 @@ void HttpServer::onConnection(std::shared_ptr<Connection> conn) {
     }
 }
 
-void HttpServer::onData(std::shared_ptr<Connection> conn, Buffer* buf) {
+void HttpServer::onData(const std::shared_ptr<Connection>& conn, Buffer* buf) {
     auto parserContext = static_cast<ParserContext*>(conn->userData());
     if (!parserContext) return;
 
@@ -115,7 +116,7 @@ void HttpServer::onData(std::shared_ptr<Connection> conn, Buffer* buf) {
     }
 }
 
-void HttpServer::processRequest(std::shared_ptr<Connection> conn) {
+void HttpServer::processRequest(const std::shared_ptr<Connection>& conn) {
     auto parserContext = static_cast<ParserContext*>(conn->userData());
     if (!parserContext) return;
 
@@ -130,6 +131,24 @@ void HttpServer::processRequest(std::shared_ptr<Connection> conn) {
     resp.setKeepAlive(req.keepAlive());
 
     if (resp.isFile()) {
+        // 先 open 文件（在发 HTTP 头之前），避免发头后 open 失败导致协议错乱
+        int fileFd = ::open(resp.filePath().c_str(), O_RDONLY);
+        if (fileFd < 0) {
+            // 文件不存在（可能被过期清理删了），返回 410 Gone
+            HttpResponse errResp;
+            errResp.setStatusCode(410);
+            errResp.setStatusMessage("Gone");
+            errResp.setKeepAlive(req.keepAlive());
+            errResp.setBody("File no longer available");
+            conn->send(errResp.build());
+            if (!req.keepAlive()) {
+                conn->close();
+            } else {
+                conn->resetForNextRequest();
+            }
+            return;
+        }
+
         if (req.hasRange()) {
             int64_t fileSize = static_cast<int64_t>(resp.fileSize());
             int64_t start = req.rangeStart();
@@ -149,6 +168,7 @@ void HttpServer::processRequest(std::shared_ptr<Connection> conn) {
             // 验证范围
             if (start < 0 || start >= fileSize || end < 0 || end >= fileSize || start > end) {
                 // 416 Range Not Satisfiable
+                ::close(fileFd);  // 范围不满足，关闭刚 open 的 fd
                 HttpResponse errResp;
                 errResp.setStatusCode(416);
                 errResp.setStatusMessage("Range Not Satisfiable");
@@ -177,14 +197,14 @@ void HttpServer::processRequest(std::shared_ptr<Connection> conn) {
 
             std::string header = rangeResp.build();
             conn->send(header);
-            conn->sendFile(resp.filePath(), resp.fileSize(),
+            conn->sendFile(fileFd, resp.fileSize(),
                            static_cast<off_t>(start), sendLength);
             conn->setState(Connection::State::SendingResponse);
         } else {
             // 普通文件响应：先发 HTTP 头，再 sendfile
             std::string header = resp.build();
             conn->send(header);
-            conn->sendFile(resp.filePath(), resp.fileSize());
+            conn->sendFile(fileFd, resp.fileSize());
             // 文件响应不在此处处理 keepAlive，延迟到发送完成后的回调中处理
             conn->setState(Connection::State::SendingResponse);
         }

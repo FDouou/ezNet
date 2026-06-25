@@ -11,8 +11,8 @@ namespace ezNet {
 
 class TcpServer {
 public:
-    using ConnectionCallback = std::function<void(std::shared_ptr<Connection>)>;
-    using DataCallback = std::function<void(std::shared_ptr<Connection>, Buffer*)>;
+    using ConnectionCallback = std::function<void(const std::shared_ptr<Connection>&)>;
+    using DataCallback = std::function<void(const std::shared_ptr<Connection>&, Buffer*)>;
 
     TcpServer(EventLoop* loop, uint16_t port);
     ~TcpServer();
@@ -31,7 +31,7 @@ public:
 
 private:
     void handleAccept();
-    void removeConnection(std::shared_ptr<Connection> conn);
+    void removeConnection(const std::shared_ptr<Connection>& conn);
 
     EventLoop* loop_;
     uint16_t port_;

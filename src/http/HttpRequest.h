@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 #include <unordered_map>
 
 namespace ezNet {
@@ -31,7 +33,7 @@ public:
     std::string queryString() const;
     const std::string& queryStringRef() const;
 
-    const std::unordered_map<std::string, std::string>& headers() const;
+    const std::vector<std::pair<std::string, std::string>>& headers() const;
     std::string header(const std::string& name) const;
     void setHeader(const std::string& name, const std::string& value);
 
@@ -64,7 +66,7 @@ private:
     std::string url_;
     std::string path_;
     std::string queryString_;
-    std::unordered_map<std::string, std::string> headers_;
+    std::vector<std::pair<std::string, std::string>> headers_;
     std::string body_;
     bool keepAlive_;
     int httpMajor_;

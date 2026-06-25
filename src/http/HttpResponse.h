@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
+#include <vector>
 
 namespace ezNet {
 
@@ -47,7 +47,7 @@ public:
 private:
     int statusCode_;
     std::string statusMessage_;
-    std::unordered_map<std::string, std::string> headers_;
+    std::vector<std::pair<std::string, std::string>> headers_;
     std::string body_;
     bool keepAlive_;
     bool chunked_;

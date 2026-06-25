@@ -123,6 +123,39 @@ void Connection::sendFile(const std::string& filePath, size_t fileSize, off_t of
     });
 }
 
+void Connection::sendFile(int fileFd, size_t fileSize, off_t offset, size_t length) {
+    if (sendingFile_) {
+        LOG_ERROR("sendFile: already sending a file, ignoring fd=%d", fileFd);
+        ::close(fileFd);  // 关闭调用方传入的 fd，避免泄漏
+        return;
+    }
+
+    // 如果 offset > 0，定位到指定位置
+    if (offset > 0) {
+        off_t result = ::lseek(fileFd, offset, SEEK_SET);
+        if (result == (off_t)-1) {
+            ::close(fileFd);
+            LOG_ERROR("sendFile: lseek failed for fd=%d", fileFd);
+            return;
+        }
+    }
+
+    sendingFile_ = true;
+    fileFd_ = fileFd;  // 接管 fd 所有权（完成后在 handleWrite 里 close）
+    fileSize_ = fileSize;
+    fileOffset_ = offset;
+    bytesToSend_ = (length == 0) ? (fileSize - static_cast<size_t>(offset)) : length;
+    fileSentSize_ = 0;
+
+    // 注册 EPOLLOUT，等待可写后发送文件
+    auto self = shared_from_this();
+    loop_->modFd(fd_, EPOLLIN | EPOLLOUT, [self](uint32_t events) {
+        if (events & EPOLLIN) self->handleRead();
+        if (events & EPOLLOUT) self->handleWrite();
+        if (events & (EPOLLERR | EPOLLHUP)) self->handleError();
+    });
+}
+
 void Connection::setDataCallback(DataCallback cb) {
     dataCallback_ = cb;
 }
@@ -305,6 +338,14 @@ void Connection::handleWrite() {
 
 void Connection::handleClose() {
     if (fd_ < 0) return;
+
+    // 如果正在发送文件，通知 writeCompleteCallback（fd 还有效，上层需要 fd 清理资源）
+    // 这样异常断开时也能触发下载计数清理，避免计数器泄漏
+    if (sendingFile_ && writeCompleteCallback_) {
+        auto self = shared_from_this();
+        writeCompleteCallback_(self);
+    }
+
     loop_->removeFd(fd_);
     ::close(fd_);
     fd_ = -1;

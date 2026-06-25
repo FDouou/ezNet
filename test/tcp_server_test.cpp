@@ -66,7 +66,7 @@ void test_accept_and_connection_callback() {
     TcpServer server(&loop, 19992);
 
     std::atomic<bool> cbCalled{false};
-    server.setConnectionCallback([&](std::shared_ptr<Connection> conn) {
+    server.setConnectionCallback([&](const std::shared_ptr<Connection>& conn) {
         cbCalled = true;
         EXPECT(conn->fd() > 0, "accepted connection has valid fd");
         EXPECT(conn->state() == Connection::State::ReadingRequest,
@@ -95,7 +95,7 @@ void test_client_send_data_and_server_receive() {
     std::string receivedData;
     std::shared_ptr<Connection> serverConn;
 
-    server.setDataCallback([&](std::shared_ptr<Connection> conn, Buffer* buf) {
+    server.setDataCallback([&](const std::shared_ptr<Connection>& conn, Buffer* buf) {
         dataReceived = true;
         serverConn = conn;
         receivedData = std::string(buf->peek(), buf->readableBytes());
@@ -125,7 +125,7 @@ void test_server_send_and_client_receive() {
     EventLoop loop;
     TcpServer server(&loop, 19994);
 
-    server.setDataCallback([&](std::shared_ptr<Connection> conn, Buffer* buf) {
+    server.setDataCallback([&](const std::shared_ptr<Connection>& conn, Buffer* buf) {
         buf->retrieveAll();
         conn->send("ECHO: hello");
         conn->close();
@@ -158,10 +158,10 @@ void test_multiple_clients() {
     std::atomic<int> connCount{0};
     std::atomic<int> dataCount{0};
 
-    server.setConnectionCallback([&](std::shared_ptr<Connection>) {
+    server.setConnectionCallback([&](const std::shared_ptr<Connection>&) {
         connCount++;
     });
-    server.setDataCallback([&](std::shared_ptr<Connection>, Buffer* buf) {
+    server.setDataCallback([&](const std::shared_ptr<Connection>&, Buffer* buf) {
         dataCount++;
         buf->retrieveAll();
     });
@@ -192,12 +192,12 @@ void test_connection_close_callback() {
     TcpServer server(&loop, 19996);
 
     std::atomic<bool> closeCalled{false};
-    server.setDataCallback([&](std::shared_ptr<Connection> conn, Buffer* buf) {
+    server.setDataCallback([&](const std::shared_ptr<Connection>& conn, Buffer* buf) {
         buf->retrieveAll();
         conn->close();
     });
-    server.setConnectionCallback([&](std::shared_ptr<Connection> conn) {
-        conn->setCloseCallback([&](std::shared_ptr<Connection>) {
+    server.setConnectionCallback([&](const std::shared_ptr<Connection>& conn) {
+        conn->setCloseCallback([&](const std::shared_ptr<Connection>&) {
             closeCalled = true;
         });
     });

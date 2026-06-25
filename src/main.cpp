@@ -20,13 +20,13 @@ int main() {
     HttpServer httpService(&httpTcp);
 
     httpService.addRoute("GET", "/hello", [](const HttpRequest& req, HttpResponse* resp,
-                                              std::shared_ptr<Connection>) {
+                                              const std::shared_ptr<Connection>&) {
         resp->setContentType("text/plain");
         resp->setBody("Hello, ezNet!");
     });
 
     httpService.addRoute("GET", "/status", [](const HttpRequest& req, HttpResponse* resp,
-                                               std::shared_ptr<Connection>) {
+                                               const std::shared_ptr<Connection>&) {
         resp->setContentType("application/json");
         resp->setBody("{\"status\":\"ok\"}");
     });

@@ -15,9 +15,9 @@ namespace ezNet {
 class HttpServer {
 public:
     using Handler = std::function<void(const HttpRequest& req, HttpResponse* resp,
-                                        std::shared_ptr<Connection> conn)>;
-    using ConnectionHook = std::function<void(std::shared_ptr<Connection>)>;
-    using WriteCompleteHook = std::function<void(std::shared_ptr<Connection>)>;
+                                        const std::shared_ptr<Connection>& conn)>;
+    using ConnectionHook = std::function<void(const std::shared_ptr<Connection>&)>;
+    using WriteCompleteHook = std::function<void(const std::shared_ptr<Connection>&)>;
 
     HttpServer(TcpServer* tcpServer);
     ~HttpServer();
@@ -36,9 +36,9 @@ public:
     void start();
 
 private:
-    void onConnection(std::shared_ptr<Connection> conn);
-    void onData(std::shared_ptr<Connection> conn, Buffer* buf);
-    void processRequest(std::shared_ptr<Connection> conn);
+    void onConnection(const std::shared_ptr<Connection>& conn);
+    void onData(const std::shared_ptr<Connection>& conn, Buffer* buf);
+    void processRequest(const std::shared_ptr<Connection>& conn);
 
     static int onMessageBegin(http_parser* parser);
     static int onUrl(http_parser* parser, const char* at, size_t length);

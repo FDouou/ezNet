@@ -86,7 +86,7 @@ void Router::addRoute(const std::string& method, const std::string& path, Handle
 }
 
 bool Router::route(HttpRequest& req, HttpResponse* resp,
-                    std::shared_ptr<Connection> conn) const {
+                    const std::shared_ptr<Connection>& conn) const {
     auto methodIt = methodRoots_.find(req.methodRef());
     if (methodIt != methodRoots_.end()) {
         auto segments = splitPath(req.pathRef());
@@ -104,7 +104,7 @@ bool Router::route(HttpRequest& req, HttpResponse* resp,
 
 bool Router::match(RadixNode* node, const std::vector<std::string>& segments,
                    size_t index, HttpRequest& req, HttpResponse* resp,
-                   std::shared_ptr<Connection> conn) const {
+                   const std::shared_ptr<Connection>& conn) const {
     if (index == segments.size()) {
         if (node->handler) {
             node->handler(req, resp, conn);

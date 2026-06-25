@@ -1,31 +1,30 @@
-# ezNet - 高性能 C++ 网络框架
+# ezNet — 基于 epoll 的 C++17 网络框架
 
-基于 epoll 的单线程 Reactor 非阻塞网络库，仅依赖 `http-parser`。
-
-## 技术栈
-
-- C++17
-- CMake 3.16+
-- Linux (epoll)
-- http-parser (源码级嵌入)
+单线程 Reactor 模式，epoll ET（默认）/LT 可切换，非阻塞 IO。仅嵌入 http-parser
 
 ## 目录结构
 
 ```
 ezNet/
 ├── CMakeLists.txt
-├── bench/           # 基准测试结果
+├── bench/              # 基准测试结果（bench.txt）
+├── examples/           # 示例应用
+│   ├── ezdrop/         # 内网文件互传工具
+│   └── image_hosting/  # 图床服务
 ├── src/
-│   ├── core/         # 网络引擎层 (epoll, TCP, UDP, Buffer, Timer)
-│   ├── http/         # HTTP 服务层 (解析、路由、响应)
-│   ├── udp/          # UDP 应用层示例
-│   ├── util/         # 工具类 (日志、配置)
-│   └── main.cpp      # 入口
-├── test/             # 单元测试
-└── third_party/      # http-parser 源码
+│   ├── core/           # EventLoop, TcpServer, UdpServer, Connection, Buffer, Timer, TimeWheel
+│   ├── http/           # HttpServer, HttpRequest, HttpResponse, Router(Radix Tree)
+│   ├── udp/            # UdpEcho, CustomProtocol
+│   ├── util/           # Logger, Config, ThreadPool
+│   └── main.cpp
+├── test/               # 单元测试 + 集成测试
+└── third_party/        # http-parser 源码
 ```
 
 ## 构建
+
+- CMake 3.16+, C++17, Linux (epoll)
+- 默认 Release：`-O3 -march=native -DNDEBUG`
 
 ```bash
 mkdir build && cd build
@@ -39,10 +38,7 @@ make -j$(nproc)
 ./ezNet
 ```
 
-默认监听：
-
-- HTTP: 8080
-- UDP: 8081
+默认从 config.ini 读取配置；HTTP 8080 / UDP 8081。
 
 ## API 示例
 
@@ -53,9 +49,16 @@ EventLoop loop;
 TcpServer tcpServer(&loop, 8080);
 HttpServer httpServer(&tcpServer);
 
-httpServer.addRoute("GET", "/hello", [](auto& req, auto* resp) {
+httpServer.addRoute("GET", "/hello", [](const HttpRequest& req, HttpResponse* resp,
+                                        const std::shared_ptr<Connection>&) {
     resp->setContentType("text/plain");
     resp->setBody("Hello, World!");
+});
+
+httpServer.addRoute("GET", "/users/:id", [](const HttpRequest& req, HttpResponse* resp,
+                                            const std::shared_ptr<Connection>&) {
+    resp->setContentType("application/json");
+    resp->setBody("{\"id\":\"" + req.pathParam("id") + "\"}");
 });
 
 httpServer.start();
@@ -67,9 +70,8 @@ loop.loop();
 ```cpp
 EventLoop loop;
 UdpServer udpServer(&loop, 8081);
-UdpEcho echo;
 
-udpServer.setMessageCallback([&](const char* data, size_t len, auto& addr) {
+udpServer.setMessageCallback([&](const char* data, size_t len, const struct sockaddr_in& addr) {
     udpServer.sendTo(data, len, addr);
 });
 
@@ -77,29 +79,51 @@ udpServer.start();
 loop.loop();
 ```
 
+## 示例应用
+
+### ezdrop — 内网文件互传工具
+
+服务端常驻提供 Web 界面，通过浏览器上传/下载文件。取件码为核心抽象：上传完成产出 6 位数字码，凭码下载。
+
+- 单文件/多文件/目录上传（自动 tar.gz 打包）
+- sendfile 零拷贝下载
+- Range 断点续传
+- 过期自动清理
+- JSON 配置文件
+- 最大文件大小限制（413）
+- 并发下载限制（503 + Retry-After）
+- 累计统计（GET /api/stats）
+
+```bash
+./ezdrop [-p port] [-d storage_dir] [-s static_dir] [-c config.json]
+```
+
+默认端口 8080。
+
+### image_hosting — 图床服务
+
+- POST /upload 上传图片
+- GET /img/:filename 展示（sendfile 零拷贝）
+- 内嵌 HTML 上传表单
+
+```bash
+./image_hosting [port] [storage_dir]
+```
+
+默认端口 8080，存储目录 /tmp/eznet_images。
+
 ## 性能基准
 
-> ⚠️ 以下数据为 **WSL2 虚拟环境下限** ⚠️ 因WSL2 的系统调用需穿越 Hyper-V 虚拟化层，实际性能受此影响较大
-
-单线程 EventLoop，GCC 15，`wrk` 压测：
+>  WSL2 环境 wrk测试
 
 | 并发连接 | QPS | P50 延迟 | P99 延迟 |
 |---|---|---|---|
-| 1 (pipelining) | 21,000 | 38 μs | 275 μs |
-| 10 | 75,576 | — | — |
-| 100 | **90,450** | — | — |
-| 100 (JSON) | 87,513 | 1.12 ms | 1.72 ms |
-| 500 | 88,659 | 5.52 ms | 7.06 ms |
+| 100 | 174,661 | 557 μs | 0.92 ms |
+| 500 | 165,472 | 2.98 ms | 4.12 ms |
 
-**关键趋势**（不受虚拟化影响）：
+## 测试
 
-| 指标 | 表现 | 说明 |
-|---|---|---|
-| 峰值 QPS | ~9 万（WSL2 下限） | CPU 单核饱和后不再增长 |
-| 延迟线性度 | 100→500 连接，延迟 1.1→5.5 ms | 单线程公平调度，无连接饿死 |
-| 长尾延迟 | P99 与 P50 差距始终 < 2 ms | 无隐藏性能坑 |
-| 内存 | 仅 8.2 MB RSS | 极低开销 |
-| 稳定性 | 450 万请求零 FD 泄漏 | 架构可靠 |
+构建后在 `build/` 目录下运行各可执行测试文件。
 
-> 瓶颈在单核 CPU，开启 `SO_REUSEPORT` + 多线程可线性扩展至全核利用。
-
+- 单元测试：eventloop_test, buffer_test, tcp_server_test, udp_server_test, http_test, config_test, timewheel_test
+- 集成测试：`test/ezdrop_integration_test.sh`（覆盖 ezdrop 全部功能）

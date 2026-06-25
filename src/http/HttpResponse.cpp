@@ -30,7 +30,24 @@ void HttpResponse::setContentType(const std::string& type) {
 }
 
 void HttpResponse::addHeader(const std::string& name, const std::string& value) {
-    headers_[name] = value;
+    // 查找同名头部（大小写不敏感）
+    for (auto& h : headers_) {
+        if (h.first.size() == name.size()) {
+            bool match = true;
+            for (size_t i = 0; i < name.size(); i++) {
+                if (std::tolower(static_cast<unsigned char>(h.first[i])) !=
+                    std::tolower(static_cast<unsigned char>(name[i]))) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                h.second = value;  // 更新已有头部
+                return;
+            }
+        }
+    }
+    headers_.emplace_back(name, value);  // 新增
 }
 
 std::string HttpResponse::header(const std::string& name) const {
@@ -160,8 +177,12 @@ void HttpResponse::reset() {
 
 std::string HttpResponse::build() const {
     // 1. 精确预计算所需大小（避免 realloc）
-    size_t estimated = 64;  // "HTTP/1.1 " + status + " " + message + "\r\n" + "Server: ezNet\r\n"
-    estimated += body_.size();
+    size_t estimated = 9;                              // "HTTP/1.1 "
+    estimated += std::to_string(statusCode_).size();   // 状态码位数
+    estimated += 1;                                    // 状态码后的空格
+    estimated += statusMessage_.size();                // reason phrase
+    estimated += 2;                                    // 状态行 "\r\n"
+    estimated += 16;                                   // "Server: ezNet\r\n"
     for (const auto& header : headers_) {
         if (!chunked_ || header.first != "Content-Length") {
             estimated += header.first.size() + header.second.size() + 4;  // ": " + "\r\n"
@@ -170,7 +191,8 @@ std::string HttpResponse::build() const {
     if (chunked_ && !body_.empty()) {
         estimated += body_.size() + 64;  // chunked overhead
     }
-    estimated += 2;  // "\r\n"
+    estimated += 2;        // 结束空行 "\r\n"
+    estimated += body_.size();
 
     std::string response;
     response.reserve(estimated);

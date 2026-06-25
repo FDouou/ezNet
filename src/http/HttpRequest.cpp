@@ -88,7 +88,7 @@ const std::string& HttpRequest::queryStringRef() const {
     return queryString_;
 }
 
-const std::unordered_map<std::string, std::string>& HttpRequest::headers() const {
+const std::vector<std::pair<std::string, std::string>>& HttpRequest::headers() const {
     return headers_;
 }
 
@@ -97,7 +97,8 @@ std::string HttpRequest::header(const std::string& name) const {
         if (kv.first.size() == name.size()) {
             bool match = true;
             for (size_t i = 0; i < name.size(); i++) {
-                if (std::tolower(kv.first[i]) != std::tolower(name[i])) {
+                if (std::tolower(static_cast<unsigned char>(kv.first[i])) !=
+                    std::tolower(static_cast<unsigned char>(name[i]))) {
                     match = false;
                     break;
                 }
@@ -109,7 +110,23 @@ std::string HttpRequest::header(const std::string& name) const {
 }
 
 void HttpRequest::setHeader(const std::string& name, const std::string& value) {
-    headers_[name] = value;
+    for (auto& h : headers_) {
+        if (h.first.size() == name.size()) {
+            bool match = true;
+            for (size_t i = 0; i < name.size(); i++) {
+                if (std::tolower(static_cast<unsigned char>(h.first[i])) !=
+                    std::tolower(static_cast<unsigned char>(name[i]))) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                h.second = value;
+                return;
+            }
+        }
+    }
+    headers_.emplace_back(name, value);
 }
 
 const std::string& HttpRequest::body() const {
